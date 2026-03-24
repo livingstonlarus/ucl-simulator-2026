@@ -6,7 +6,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     watch: {
-      ignored: ['**/database.sqlite', '**/database.sqlite-journal']
+      usePolling: true,
+      interval: 1000,
+      ignored: ['**/database.sqlite', '**/database.sqlite-journal', '**/node_modules/**']
     }
   }
 })

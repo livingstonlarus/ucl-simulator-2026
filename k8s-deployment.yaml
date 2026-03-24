@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ucl-simulator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ucl-simulator
+  namespace: ucl-simulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ucl-simulator
+  template:
+    metadata:
+      labels:
+        app: ucl-simulator
+    spec:
+      containers:
+      - name: app
+        image: node:20-alpine
+        workingDir: /app
+        command: ["sh", "-c", "npm install && node server.js"]
+        ports:
+        - containerPort: 3000
+        volumeMounts:
+        - name: code
+          mountPath: /app
+      volumes:
+      - name: code
+        hostPath:
+          path: /var/www/ucl-simulator
+          type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ucl-simulator
+  namespace: ucl-simulator
+spec:
+  selector:
+    app: ucl-simulator
+  ports:
+  - port: 80
+    targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ucl-simulator
+  namespace: ucl-simulator
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+  - hosts:
+    - ucl-simulator.metillon.com
+    secretName: ucl-simulator-tls
+  rules:
+  - host: ucl-simulator.metillon.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ucl-simulator
+            port:
+              number: 80
