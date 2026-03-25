@@ -152,6 +152,7 @@ app.post('/generate-q2', (req, res) => {
         { id: 101, team1: "Fenerbahçe (TUR)", team2: "Sparta Prague (CZE)" },
         { id: 102, team1: "Union Saint-Gilloise (BEL)", team2: "FC Twente (NED)" },
         { id: 103, team1: "Rangers FC (SCO)", team2: "FC Thun (SUI)" }, 
+        
         { id: 104, team1: "Dinamo Zagreb (CRO)", team2: getWinner(11) }, 
         { id: 105, team1: "FC Basel (SUI)", team2: getWinner(7) },      
         { id: 106, team1: "FC Midtjylland (DEN)", team2: getWinner(12) }, 
@@ -161,9 +162,9 @@ app.post('/generate-q2', (req, res) => {
         { id: 110, team1: "APOEL Nicosie (CYP)", team2: getWinner(4) },   
         { id: 111, team1: "Rapid Wien (AUT)", team2: getWinner(5) },      
         { id: 112, team1: "Hearts (SCO)", team2: getWinner(8) },          
-        { id: 113, team1: "Ferencváros (HUN)", team2: getWinner(9) },      
-        { id: 114, team1: getWinner(10), team2: getWinner(6) },
-        { id: 115, team1: getWinner(13), team2: getWinner(2) }
+        { id: 113, team1: getWinner(9), team2: getWinner(10) }, // Ferencváros vs FCSB (par exemple, si ils ont gagné)
+        { id: 114, team1: getWinner(6), team2: getWinner(13) }, // Maccabi vs Dinamo Minsk
+        { id: 115, team1: getWinner(2), team2: "Sheriff Tiraspol (MDA)" } // Kairat vs Sheriff (Entrant Q2)
       ];
 
       const stmt = db.prepare("INSERT INTO matches (id, party_id, team1, team2, s1a, s2a, s1r, s2r, winner) VALUES (?, ?, ?, ?, '', '', '', '', null)");
