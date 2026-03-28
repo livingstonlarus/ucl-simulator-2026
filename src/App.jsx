@@ -113,6 +113,15 @@ function App() {
       .catch(e => console.error(e));
   };
 
+  const handleGenerateQ3 = () => {
+    fetch(`/generate-q3?partyId=${party.id}`, { method: 'POST' })
+      .then(res => {
+        if (!res.ok) alert("Assurez-vous que tous les matchs du Q2 sont terminés.");
+        else fetch(`/matches?partyId=${party.id}`).then(r => r.json()).then(data => setMatches(data));
+      })
+      .catch(e => console.error(e));
+  };
+
   const getLogo = (teamFull) => {
     if (!teamFull) return null;
     const teamName = teamFull.split(' (')[0].trim();
@@ -122,6 +131,8 @@ function App() {
   const q1Matches = matches.filter(m => m.id <= 14);
   const q2League = matches.filter(m => m.id >= 101 && m.id <= 103);
   const q2Champions = matches.filter(m => m.id >= 104 && m.id <= 115);
+  const q3League = matches.filter(m => m.id >= 201 && m.id <= 204);
+  const q3Champions = matches.filter(m => m.id >= 205 && m.id <= 210);
 
   if (!party) {
     return (
@@ -180,9 +191,29 @@ function App() {
          </div>
       )}
 
+      {q3League.length > 0 && (
+         <div className="round-section">
+           <h2 className="round-title">Q3 - Voie de la Ligue</h2>
+           <MatchList list={q3League} />
+         </div>
+      )}
+
+      {q3Champions.length > 0 && (
+         <div className="round-section">
+           <h2 className="round-title">Q3 - Voie des Champions</h2>
+           <MatchList list={q3Champions} />
+         </div>
+      )}
+
       {matches.length > 0 && q2League.length === 0 && q2Champions.length === 0 && (
         <footer className="footer">
           <button className="next-btn" onClick={handleGenerateQ2}>Générer le Q2</button>
+        </footer>
+      )}
+
+      {q2League.length > 0 && q2Champions.length > 0 && q3League.length === 0 && q3Champions.length === 0 && (
+        <footer className="footer">
+          <button className="next-btn" onClick={handleGenerateQ3}>Générer le Q3</button>
         </footer>
       )}
     </div>

@@ -178,6 +178,50 @@ app.post('/generate-q2', (req, res) => {
   });
 });
 
+app.post('/generate-q3', (req, res) => {
+  const partyId = req.query.partyId || 1;
+  db.all("SELECT * FROM matches WHERE id >= 101 AND id <= 115 AND party_id = ?", [partyId], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    // Check if Q2 is fully completed (all have winners)
+    if (rows.length < 15) return res.status(400).json({ error: "Q2 n'est pas encore généré." });
+    const notFinished = rows.filter(r => !r.winner);
+    if (notFinished.length > 0) return res.status(400).json({ error: "Tous les matchs du Q2 ne sont pas terminés." });
+
+    // Check if Q3 already exists
+    db.get("SELECT COUNT(*) as count FROM matches WHERE id >= 201 AND party_id = ?", [partyId], (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (row.count > 0) return res.status(400).json({ error: "Le Q3 est déjà généré." });
+
+      const getWinner = (id) => rows.find(r => r.id === id).winner;
+      
+      const q3Matches = [
+        // --- VOIE DE LA LIGUE (3 gagnants Q2 + 5 entrants) = 4 matchs ---
+        { id: 201, team1: getWinner(101), team2: "Lille OSC (FRA)" },
+        { id: 202, team1: getWinner(102), team2: "SL Benfica (POR)" },
+        { id: 203, team1: getWinner(103), team2: "Feyenoord (NED)" },
+        { id: 204, team1: "RB Salzburg (AUT)", team2: "Slavia Prague (CZE)" }, // 2 entrants s'affrontant
+        
+        // --- VOIE DES CHAMPIONS (12 gagnants Q2) = 6 matchs ---
+        { id: 205, team1: getWinner(104), team2: getWinner(105) }, 
+        { id: 206, team1: getWinner(106), team2: getWinner(107) },      
+        { id: 207, team1: getWinner(108), team2: getWinner(109) }, 
+        { id: 208, team1: getWinner(110), team2: getWinner(111) },      
+        { id: 209, team1: getWinner(112), team2: getWinner(113) },    
+        { id: 210, team1: getWinner(114), team2: getWinner(115) } 
+      ];
+
+      const stmt = db.prepare("INSERT INTO matches (id, party_id, team1, team2, s1a, s2a, s1r, s2r, winner) VALUES (?, ?, ?, ?, '', '', '', '', null)");
+      for (const m of q3Matches) {
+        stmt.run(m.id, partyId, m.team1, m.team2);
+      }
+      stmt.finalize();
+
+      res.json({ success: true, message: "Q3 généré avec succès !" });
+    });
+  });
+});
+
 import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
