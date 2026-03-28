@@ -200,7 +200,7 @@ app.post('/generate-q3', (req, res) => {
         { id: 201, team1: getWinner(101), team2: "Olympique de Marseille (FRA)" },
         { id: 202, team1: getWinner(102), team2: "SL Benfica (POR)" },
         { id: 203, team1: getWinner(103), team2: "Feyenoord (NED)" },
-        { id: 204, team1: "RB Salzburg (AUT)", team2: "Slavia Prague (CZE)" }, // 2 entrants s'affrontant
+        { id: 204, team1: "RB Salzburg (AUT)", team2: "Dynamo Kyiv (UKR)" }, // 2 entrants s'affrontant
         
         // --- VOIE DES CHAMPIONS (12 gagnants Q2) = 6 matchs ---
         { id: 205, team1: getWinner(104), team2: getWinner(105) }, 
