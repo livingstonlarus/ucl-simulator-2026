@@ -7,6 +7,7 @@ function App() {
   const [parties, setParties] = useState([]);
   const [matches, setMatches] = useState([]);
   const [newPartyName, setNewPartyName] = useState("");
+  const [pots, setPots] = useState(null);
 
   useEffect(() => {
     fetch('/parties')
@@ -131,6 +132,18 @@ function App() {
       .catch(e => console.error(e));
   };
 
+  const handleGeneratePots = () => {
+    fetch(`/generate-pots?partyId=${party.id}`, { method: 'POST' })
+      .then(res => {
+        if (!res.ok) alert("Assurez-vous que tous les matchs des Barrages (Q4) sont terminés.");
+        else return res.json();
+      })
+      .then(data => {
+        if (data && data.pots) setPots(data.pots);
+      })
+      .catch(e => console.error(e));
+  };
+
   const getLogo = (teamFull) => {
     if (!teamFull) return null;
     const teamName = teamFull.split(' (')[0].trim();
@@ -246,6 +259,33 @@ function App() {
         <footer className="footer">
           <button className="next-btn" onClick={handleGenerateQ4}>Générer les Barrages (Q4)</button>
         </footer>
+      )}
+
+      {q4League.length > 0 && q4Champions.length > 0 && !pots && (
+        <footer className="footer">
+          <button className="next-btn generate-pots-btn" onClick={handleGeneratePots}>🎲 Générer les Chapeaux (Phase de Ligue)</button>
+        </footer>
+      )}
+
+      {pots && (
+        <div className="pots-section">
+          <h2 className="round-title">Chapeaux - Phase de Ligue (Top 36)</h2>
+          <div className="pots-grid">
+            {Object.keys(pots).map((potKey, index) => (
+              <div key={potKey} className="pot-card">
+                <h3>Chapeau {index + 1}</h3>
+                <ul>
+                  {pots[potKey].map(team => (
+                    <li key={team}>
+                      {getLogo(team) && <img src={getLogo(team)} alt="" className="pot-team-logo" />}
+                      {team}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

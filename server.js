@@ -242,12 +242,12 @@ app.post('/generate-q4', (req, res) => {
         { id: 301, team1: getWinner(201), team2: getWinner(202) },
         { id: 302, team1: getWinner(203), team2: getWinner(204) },
         
-        // --- BARRAGES VOIE DES CHAMPIONS (6 gagnants Q3 + 4 Entrants directe en Barrages) = 5 matchs ---
-        { id: 303, team1: getWinner(205), team2: "Crvena zvezda (SRB)" }, 
-        { id: 304, team1: getWinner(206), team2: "FC Copenhagen (DEN)" },      
+        // --- BARRAGES VOIE DES CHAMPIONS (6 gagnants Q3 + 4 Geants) = 5 matchs ---
+        { id: 303, team1: getWinner(205), team2: "Juventus (ITA)" }, 
+        { id: 304, team1: getWinner(206), team2: "RB Leipzig (GER)" },      
         { id: 305, team1: getWinner(207), team2: getWinner(208) }, 
-        { id: 306, team1: getWinner(209), team2: "Shakhtar Donetsk (UKR)" },      
-        { id: 307, team1: getWinner(210), team2: "AEK Athens (GRE)" }    
+        { id: 306, team1: getWinner(209), team2: "Real Betis (ESP)" },      
+        { id: 307, team1: getWinner(210), team2: "Aston Villa (ENG)" }    
       ];
 
       const stmt = db.prepare("INSERT INTO matches (id, party_id, team1, team2, s1a, s2a, s1r, s2r, winner) VALUES (?, ?, ?, ?, '', '', '', '', null)");
@@ -258,6 +258,41 @@ app.post('/generate-q4', (req, res) => {
 
       res.json({ success: true, message: "Q4 généré avec succès !" });
     });
+  });
+});
+
+app.post('/generate-pots', (req, res) => {
+  const partyId = req.query.partyId || 1;
+  db.all("SELECT * FROM matches WHERE id >= 301 AND id <= 307 AND party_id = ?", [partyId], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (rows.length < 7) return res.status(400).json({ error: "Q4 n'est pas encore généré." });
+    
+    const notFinished = rows.filter(r => !r.winner);
+    if (notFinished.length > 0) return res.status(400).json({ error: "Tous les matchs du Q4 ne sont pas terminés." });
+
+    const q4Winners = rows.map(r => r.winner);
+
+    const directQualifiers = [
+      "Atlético Madrid (ESP)", "Bayern Munich (GER)", "Real Madrid (ESP)", "Paris SG (FRA)",
+      "Arsenal (ENG)", "Inter Milan (ITA)", "FC Barcelone (ESP)", "Sporting CP (POR)",
+      "Manchester City (ENG)", "Borussia Dortmund (GER)", "TSG Hoffenheim (GER)", "AC Milan (ITA)",
+      "PSV Eindhoven (NED)", "SSC Napoli (ITA)", "Villarreal CF (ESP)", "Olympique Lyonnais (FRA)",
+      "RC Lens (FRA)", "FC Porto (POR)", "Club Brugge (BEL)", "Como 1907 (ITA)",
+      "Celtic Glasgow (SCO)", "VfB Stuttgart (GER)", "Galatasaray (TUR)", "Slavia Prague (CZE)",
+      "Shakhtar Donetsk (UKR)", "SK Sturm Graz (AUT)", "Bologna FC (ITA)", "Sevilla FC (ESP)",
+      "Girona FC (ESP)"
+    ];
+
+    const allTeams = [...q4Winners, ...directQualifiers];
+    
+    // Sort logic to emulate pots (very simplistic for now, just split into 4 pots of 9)
+    // In a real app we'd sort by coefficient. We shuffle a bit but keep top dogs high.
+    const pot1 = allTeams.slice(0, 9);
+    const pot2 = allTeams.slice(9, 18);
+    const pot3 = allTeams.slice(18, 27);
+    const pot4 = allTeams.slice(27, 36);
+
+    res.json({ success: true, pots: { pot1, pot2, pot3, pot4 } });
   });
 });
 

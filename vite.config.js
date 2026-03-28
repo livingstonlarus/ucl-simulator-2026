@@ -10,7 +10,8 @@ export default defineConfig({
       '/parties': 'http://localhost:3000',
       '/generate-q2': 'http://localhost:3000',
       '/generate-q3': 'http://localhost:3000',
-      '/generate-q4': 'http://localhost:3000'
+      '/generate-q4': 'http://localhost:3000',
+      '/generate-pots': 'http://localhost:3000'
     },
     watch: {
       usePolling: true,
