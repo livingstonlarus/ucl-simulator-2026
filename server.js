@@ -197,7 +197,7 @@ app.post('/generate-q3', (req, res) => {
       
       const q3Matches = [
         // --- VOIE DE LA LIGUE (3 gagnants Q2 + 5 entrants) = 4 matchs ---
-        { id: 201, team1: getWinner(101), team2: "Lille OSC (FRA)" },
+        { id: 201, team1: getWinner(101), team2: "Olympique de Marseille (FRA)" },
         { id: 202, team1: getWinner(102), team2: "SL Benfica (POR)" },
         { id: 203, team1: getWinner(103), team2: "Feyenoord (NED)" },
         { id: 204, team1: "RB Salzburg (AUT)", team2: "Slavia Prague (CZE)" }, // 2 entrants s'affrontant
