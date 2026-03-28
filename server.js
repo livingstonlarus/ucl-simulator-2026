@@ -244,7 +244,7 @@ app.post('/generate-q4', (req, res) => {
         
         // --- BARRAGES VOIE DES CHAMPIONS (6 gagnants Q3 + 4 Entrants directe en Barrages) = 5 matchs ---
         { id: 303, team1: getWinner(205), team2: "Crvena zvezda (SRB)" }, 
-        { id: 304, team1: getWinner(206), team2: "Young Boys (SUI)" },      
+        { id: 304, team1: getWinner(206), team2: "FC Copenhagen (DEN)" },      
         { id: 305, team1: getWinner(207), team2: getWinner(208) }, 
         { id: 306, team1: getWinner(209), team2: "Shakhtar Donetsk (UKR)" },      
         { id: 307, team1: getWinner(210), team2: "AEK Athens (GRE)" }    
