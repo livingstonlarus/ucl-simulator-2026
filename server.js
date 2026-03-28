@@ -242,12 +242,12 @@ app.post('/generate-q4', (req, res) => {
         { id: 301, team1: getWinner(201), team2: getWinner(202) },
         { id: 302, team1: getWinner(203), team2: getWinner(204) },
         
-        // --- BARRAGES VOIE DES CHAMPIONS (6 gagnants Q3 + 4 Geants) = 5 matchs ---
-        { id: 303, team1: getWinner(205), team2: "Juventus (ITA)" }, 
-        { id: 304, team1: getWinner(206), team2: "RB Leipzig (GER)" },      
+        // --- BARRAGES VOIE DES CHAMPIONS (6 gagnants Q3 + 4 standard entrants) = 5 matchs ---
+        { id: 303, team1: getWinner(205), team2: "Crvena zvezda (SRB)" }, 
+        { id: 304, team1: getWinner(206), team2: "FC Copenhagen (DEN)" },      
         { id: 305, team1: getWinner(207), team2: getWinner(208) }, 
-        { id: 306, team1: getWinner(209), team2: "Real Betis (ESP)" },      
-        { id: 307, team1: getWinner(210), team2: "Aston Villa (ENG)" }    
+        { id: 306, team1: getWinner(209), team2: "PAOK Salonika (GRE)" },      
+        { id: 307, team1: getWinner(210), team2: "Qarabağ (AZE)" }    
       ];
 
       const stmt = db.prepare("INSERT INTO matches (id, party_id, team1, team2, s1a, s2a, s1r, s2r, winner) VALUES (?, ?, ?, ?, '', '', '', '', null)");
@@ -274,13 +274,12 @@ app.post('/generate-pots', (req, res) => {
 
     const directQualifiers = [
       "Atlético Madrid (ESP)", "Bayern Munich (GER)", "Real Madrid (ESP)", "Paris SG (FRA)",
-      "Arsenal (ENG)", "Inter Milan (ITA)", "FC Barcelone (ESP)", "Sporting CP (POR)",
+      "Arsenal (ENG)", "Inter Milan (ITA)", "FC Barcelone (ESP)", "Sporting CP (POR)", "Aston Villa (ENG)",
       "Manchester City (ENG)", "Borussia Dortmund (GER)", "TSG Hoffenheim (GER)", "AC Milan (ITA)",
-      "PSV Eindhoven (NED)", "SSC Napoli (ITA)", "Villarreal CF (ESP)", "Olympique Lyonnais (FRA)",
-      "RC Lens (FRA)", "FC Porto (POR)", "Club Brugge (BEL)", "Como 1907 (ITA)",
+      "PSV Eindhoven (NED)", "SSC Napoli (ITA)", "Villarreal CF (ESP)", "Juventus (ITA)", "RB Leipzig (GER)",
+      "Olympique Lyonnais (FRA)", "RC Lens (FRA)", "FC Porto (POR)", "Club Brugge (BEL)", "Como 1907 (ITA)",
       "Celtic Glasgow (SCO)", "VfB Stuttgart (GER)", "Galatasaray (TUR)", "Slavia Prague (CZE)",
-      "Shakhtar Donetsk (UKR)", "SK Sturm Graz (AUT)", "Bologna FC (ITA)", "Sevilla FC (ESP)",
-      "Girona FC (ESP)"
+      "Shakhtar Donetsk (UKR)", "Feyenoord (NED)"
     ];
 
     const allTeams = [...q4Winners, ...directQualifiers];
