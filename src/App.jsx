@@ -195,7 +195,7 @@ function App() {
           <div key={match.id} className="match-card">
             <div className="match-header">
               <div className="match-title">Match {match.id}</div>
-              <button className="random-btn" onClick={() => handleGenerateRandomScores(match.id)}>
+              <button className="random-btn" onClick={() => handleGenerateRandomScores(match.id)} tabIndex="-1">
                 🎲 Auto
               </button>
             </div>
