@@ -122,6 +122,15 @@ function App() {
       .catch(e => console.error(e));
   };
 
+  const handleGenerateQ4 = () => {
+    fetch(`/generate-q4?partyId=${party.id}`, { method: 'POST' })
+      .then(res => {
+        if (!res.ok) alert("Assurez-vous que tous les matchs du Q3 sont terminés.");
+        else fetch(`/matches?partyId=${party.id}`).then(r => r.json()).then(data => setMatches(data));
+      })
+      .catch(e => console.error(e));
+  };
+
   const getLogo = (teamFull) => {
     if (!teamFull) return null;
     const teamName = teamFull.split(' (')[0].trim();
@@ -133,6 +142,8 @@ function App() {
   const q2Champions = matches.filter(m => m.id >= 104 && m.id <= 115);
   const q3League = matches.filter(m => m.id >= 201 && m.id <= 204);
   const q3Champions = matches.filter(m => m.id >= 205 && m.id <= 210);
+  const q4League = matches.filter(m => m.id >= 301 && m.id <= 302);
+  const q4Champions = matches.filter(m => m.id >= 303 && m.id <= 307);
 
   if (!party) {
     return (
@@ -205,6 +216,20 @@ function App() {
          </div>
       )}
 
+      {q4League.length > 0 && (
+         <div className="round-section">
+           <h2 className="round-title">Barrages (Q4) - Voie de la Ligue</h2>
+           <MatchList list={q4League} />
+         </div>
+      )}
+
+      {q4Champions.length > 0 && (
+         <div className="round-section">
+           <h2 className="round-title">Barrages (Q4) - Voie des Champions</h2>
+           <MatchList list={q4Champions} />
+         </div>
+      )}
+
       {matches.length > 0 && q2League.length === 0 && q2Champions.length === 0 && (
         <footer className="footer">
           <button className="next-btn" onClick={handleGenerateQ2}>Générer le Q2</button>
@@ -214,6 +239,12 @@ function App() {
       {q2League.length > 0 && q2Champions.length > 0 && q3League.length === 0 && q3Champions.length === 0 && (
         <footer className="footer">
           <button className="next-btn" onClick={handleGenerateQ3}>Générer le Q3</button>
+        </footer>
+      )}
+
+      {q3League.length > 0 && q3Champions.length > 0 && q4League.length === 0 && q4Champions.length === 0 && (
+        <footer className="footer">
+          <button className="next-btn" onClick={handleGenerateQ4}>Générer les Barrages (Q4)</button>
         </footer>
       )}
     </div>

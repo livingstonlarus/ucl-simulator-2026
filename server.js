@@ -222,6 +222,45 @@ app.post('/generate-q3', (req, res) => {
   });
 });
 
+app.post('/generate-q4', (req, res) => {
+  const partyId = req.query.partyId || 1;
+  db.all("SELECT * FROM matches WHERE id >= 201 AND id <= 210 AND party_id = ?", [partyId], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (rows.length < 10) return res.status(400).json({ error: "Q3 n'est pas encore généré." });
+    const notFinished = rows.filter(r => !r.winner);
+    if (notFinished.length > 0) return res.status(400).json({ error: "Tous les matchs du Q3 ne sont pas terminés." });
+
+    db.get("SELECT COUNT(*) as count FROM matches WHERE id >= 301 AND party_id = ?", [partyId], (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (row.count > 0) return res.status(400).json({ error: "Le Q4 (Barrages) est déjà généré." });
+
+      const getWinner = (id) => rows.find(r => r.id === id).winner;
+      
+      const q4Matches = [
+        // --- BARRAGES VOIE DE LA LIGUE (4 gagnants Q3) = 2 matchs ---
+        { id: 301, team1: getWinner(201), team2: getWinner(202) },
+        { id: 302, team1: getWinner(203), team2: getWinner(204) },
+        
+        // --- BARRAGES VOIE DES CHAMPIONS (6 gagnants Q3 + 4 Entrants directe en Barrages) = 5 matchs ---
+        { id: 303, team1: getWinner(205), team2: "Crvena zvezda (SRB)" }, 
+        { id: 304, team1: getWinner(206), team2: "Young Boys (SUI)" },      
+        { id: 305, team1: getWinner(207), team2: getWinner(208) }, 
+        { id: 306, team1: getWinner(209), team2: "Shakhtar Donetsk (UKR)" },      
+        { id: 307, team1: getWinner(210), team2: "AEK Athens (GRE)" }    
+      ];
+
+      const stmt = db.prepare("INSERT INTO matches (id, party_id, team1, team2, s1a, s2a, s1r, s2r, winner) VALUES (?, ?, ?, ?, '', '', '', '', null)");
+      for (const m of q4Matches) {
+        stmt.run(m.id, partyId, m.team1, m.team2);
+      }
+      stmt.finalize();
+
+      res.json({ success: true, message: "Q4 généré avec succès !" });
+    });
+  });
+});
+
 import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

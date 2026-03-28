@@ -9,7 +9,8 @@ export default defineConfig({
       '/matches': 'http://localhost:3000',
       '/parties': 'http://localhost:3000',
       '/generate-q2': 'http://localhost:3000',
-      '/generate-q3': 'http://localhost:3000'
+      '/generate-q3': 'http://localhost:3000',
+      '/generate-q4': 'http://localhost:3000'
     },
     watch: {
       usePolling: true,
