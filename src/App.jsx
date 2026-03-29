@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import confetti from 'canvas-confetti';
 import './index.css';
 import logos from './logoMapping.json';
 
@@ -171,9 +172,138 @@ function App() {
         else return res.json();
       })
       .then(data => {
-        if (data && data.pots) setPots(data.pots);
+        if (data && data.pots) {
+          setPots(data.pots);
+          confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#00F0FF', '#7000FF', '#FFFFFF']
+          });
+        }
       })
       .catch(e => console.error(e));
+  };
+
+  const handlePrint = () => {
+    if (!pots) return;
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("Veuillez autoriser les pop-ups pour imprimer.");
+      return;
+    }
+
+    const allTeams = [];
+    Object.keys(pots).forEach(potKey => {
+      pots[potKey].forEach(team => {
+        allTeams.push({ team, pot: potKey });
+      });
+    });
+
+    const teamsHtml = allTeams.map(t => {
+      const staticLogo = getLogo(t.team);
+      const imgHtml = staticLogo ? `<img src="${staticLogo}" alt="${t.team}" />` : '<div style="height:20mm;"></div>';
+      return `
+        <div class="cell">
+          ${imgHtml}
+          <div class="team-name">${t.team}</div>
+        </div>
+      `;
+    }).join("");
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Imprimer les Logos des Chapeaux</title>
+        <style>
+          @page {
+            size: A4;
+            margin: 10mm;
+          }
+          body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            color: #000;
+          }
+          .print-controls {
+            text-align: center;
+            margin: 20px 0;
+          }
+          .print-btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+          }
+          .print-container {
+            width: 190mm; /* A4 width (210) minus 2x10mm margins */
+            margin: 0 auto;
+          }
+          .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 47.5mm);
+            border-top: 1px solid #000;
+            border-left: 1px solid #000;
+          }
+          .cell {
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+            height: 47.5mm; /* Perfect square (190mm / 4) */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            padding: 2mm;
+            text-align: center;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .cell img {
+            max-width: 100%;
+            max-height: 28mm;
+            object-fit: contain;
+            margin-bottom: 3mm;
+          }
+          .team-name {
+            font-size: 11px;
+            font-weight: bold;
+            line-height: 1.1;
+            margin-top: 2px;
+            max-height: 8mm;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+          }
+          @media print {
+            .print-controls { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="print-controls">
+          <button class="print-btn" onclick="window.print()">🖨️ Lancer l'impression</button>
+        </div>
+        <div class="print-container">
+          <div class="grid">
+            ${teamsHtml}
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
   };
 
   const getLogo = (teamFull) => {
@@ -384,6 +514,12 @@ function App() {
                 </ul>
               </div>
             ))}
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: '3rem' }}>
+            <button className="next-btn" onClick={handlePrint} style={{ backgroundColor: '#ff003c', color: '#fff', fontSize: '1.2rem' }}>
+              🖨️ IMPRIMER LES ÉTIQUETTES
+            </button>
           </div>
         </div>
       )}
