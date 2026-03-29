@@ -41,7 +41,9 @@ db.serialize(() => {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     association TEXT,
     team_name TEXT,
-    rank INTEGER
+    rank INTEGER,
+    is_direct_qualifier INTEGER DEFAULT 0,
+    is_direct_rebalance INTEGER DEFAULT 0
   )`);
 
   db.run(`CREATE TABLE brackets (
@@ -57,6 +59,11 @@ db.serialize(() => {
 
   // Insert the "invented" league standings from the chats
   const standings = [
+    // Direct qualifiers flag will be added later
+    { a: 'SRB', t: 'Crvena zvezda', r: 1 },
+    { a: 'UKR', t: 'Shakhtar Donetsk', r: 1 }, { a: 'UKR', t: 'Dynamo Kyiv', r: 2 },
+    { a: 'ALB', t: 'Egnatia', r: 1 },
+    { a: 'KOS', t: 'FC Ballkani', r: 1 },
     // France (FRA)
     { a: 'FRA', t: 'Paris SG', r: 1 }, { a: 'FRA', t: 'RC Lens', r: 2 }, { a: 'FRA', t: 'Olympique Lyonnais', r: 3 }, { a: 'FRA', t: 'Olympique de Marseille', r: 4 }, { a: 'FRA', t: 'AS Monaco', r: 5 },
     // England (ENG)
@@ -103,12 +110,82 @@ db.serialize(() => {
     { a: 'BLR', t: 'Dinamo Minsk', r: 1 }, { a: 'ARM', t: 'Pyunik', r: 1 }, { a: 'MDA', t: 'Petrocub Hîncești', r: 1 }, { a: 'KAZ', t: 'Ordabasy', r: 1 }
   ];
 
-  const stmt = db.prepare("INSERT INTO league_standings (association, team_name, rank) VALUES (?, ?, ?)");
-  for (const s of standings) stmt.run(s.a, s.t, s.r);
+  const isDirectQualifier = (a, r) => {
+    if (['ENG', 'ESP', 'GER', 'ITA'].includes(a) && r <= 4) return 1;
+    if (a === 'FRA' && r <= 3) return 1;
+    if (a === 'NED' && r <= 2) return 1;
+    if (['POR', 'BEL', 'AUT'].includes(a) && r === 1) return 1;
+    return 0;
+  };
+
+  const stmt = db.prepare("INSERT INTO league_standings (association, team_name, rank, is_direct_qualifier) VALUES (?, ?, ?, ?)");
+  for (const s of standings) stmt.run(s.a, s.t, s.r, isDirectQualifier(s.a, s.r));
   stmt.finalize();
 
   const teamStmt = db.prepare("INSERT INTO teams (name, association, is_champion) VALUES (?, ?, ?)");
   for (const s of standings) teamStmt.run(s.t, s.a, s.r === 1 ? 1 : 0);
   teamStmt.finalize();
+
+  const bInit = [
+    // Q1
+    { t: 1, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'SVK:1', s2: 'LEAGUE_RANK', v2: 'MKD:1' },
+    { t: 2, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'KAZ:1', s2: 'LEAGUE_RANK', v2: 'SMR:1' },
+    { t: 3, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'ALB:1', s2: 'LEAGUE_RANK', v2: 'GEO:1' },
+    { t: 4, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'FIN:1', s2: 'LEAGUE_RANK', v2: 'EST:1' },
+    { t: 5, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'BUL:1', s2: 'LEAGUE_RANK', v2: 'AND:1' },
+    { t: 6, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'ISR:1', s2: 'LEAGUE_RANK', v2: 'SVN:1' },
+    { t: 7, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'SWE:1', s2: 'LEAGUE_RANK', v2: 'FRO:1' },
+    { t: 8, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'AZE:1', s2: 'LEAGUE_RANK', v2: 'GIB:1' },
+    { t: 9, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'HUN:1', s2: 'LEAGUE_RANK', v2: 'WAL:1' },
+    { t: 10, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'ROU:1', s2: 'LEAGUE_RANK', v2: 'LVA:1' },
+    { t: 11, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'IRL:1', s2: 'LEAGUE_RANK', v2: 'ISL:1' },
+    { t: 12, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'BIH:1', s2: 'LEAGUE_RANK', v2: 'LTU:1' },
+    { t: 13, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'BLR:1', s2: 'LEAGUE_RANK', v2: 'ARM:1' },
+    { t: 14, r: 'Q1', p: 'CH', s1: 'LEAGUE_RANK', v1: 'KOS:1', s2: 'LEAGUE_RANK', v2: 'KAZ:2' },
+    // Q2 League Path
+    { t: 101, r: 'Q2', p: 'LP', s1: 'LEAGUE_RANK', v1: 'TUR:2', s2: 'LEAGUE_RANK', v2: 'CZE:2' },
+    { t: 102, r: 'Q2', p: 'LP', s1: 'LEAGUE_RANK', v1: 'BEL:2', s2: 'LEAGUE_RANK', v2: 'NED:3' },
+    { t: 103, r: 'Q2', p: 'LP', s1: 'LEAGUE_RANK', v1: 'SCO:2', s2: 'LEAGUE_RANK', v2: 'SUI:2' },
+    // Q2 Champions Path
+    { t: 104, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'CRO:1', s2: 'WINNER', v2: '11' },
+    { t: 105, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'SUI:1', s2: 'WINNER', v2: '7' },
+    { t: 106, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'DEN:1', s2: 'WINNER', v2: '12' },
+    { t: 107, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'GRE:1', s2: 'WINNER', v2: '3' },
+    { t: 108, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'POL:1', s2: 'WINNER', v2: '14' },
+    { t: 109, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'NOR:1', s2: 'WINNER', v2: '1' },
+    { t: 110, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'CYP:1', s2: 'WINNER', v2: '4' },
+    { t: 111, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'AUT:1', s2: 'WINNER', v2: '5' },
+    { t: 112, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'SCO:1', s2: 'WINNER', v2: '8' },
+    { t: 113, r: 'Q2', p: 'CH', s1: 'WINNER', v1: '9',      s2: 'WINNER', v2: '10' },
+    { t: 114, r: 'Q2', p: 'CH', s1: 'WINNER', v1: '6',      s2: 'WINNER', v2: '13' },
+    { t: 115, r: 'Q2', p: 'CH', s1: 'WINNER', v1: '2',      s2: 'LEAGUE_RANK', v2: 'MDA:1' },
+    // Q3 League Path
+    { t: 201, r: 'Q3', p: 'LP', s1: 'WINNER', v1: '101', s2: 'LEAGUE_RANK', v2: 'FRA:4' },
+    { t: 202, r: 'Q3', p: 'LP', s1: 'WINNER', v1: '102', s2: 'LEAGUE_RANK', v2: 'POR:3' },
+    { t: 203, r: 'Q3', p: 'LP', s1: 'WINNER', v1: '103', s2: 'LEAGUE_RANK', v2: 'NED:2' },
+    { t: 204, r: 'Q3', p: 'LP', s1: 'LEAGUE_RANK', v1: 'AUT:2', s2: 'LEAGUE_RANK', v2: 'UKR:2' },
+    // Q3 Champions Path
+    { t: 205, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '104', s2: 'WINNER', v2: '105' },
+    { t: 206, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '106', s2: 'WINNER', v2: '107' },
+    { t: 207, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '108', s2: 'WINNER', v2: '109' },
+    { t: 208, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '110', s2: 'WINNER', v2: '111' },
+    { t: 209, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '112', s2: 'WINNER', v2: '113' },
+    { t: 210, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '114', s2: 'WINNER', v2: '115' },
+    // Q4 (Play-Offs) League Path
+    { t: 301, r: 'Q4', p: 'LP', s1: 'WINNER', v1: '201', s2: 'WINNER', v2: '202' },
+    { t: 302, r: 'Q4', p: 'LP', s1: 'WINNER', v1: '203', s2: 'WINNER', v2: '204' },
+    // Q4 (Play-Offs) Champions Path
+    { t: 303, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '205', s2: 'LEAGUE_RANK', v2: 'SRB:1' },
+    { t: 304, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '206', s2: 'LEAGUE_RANK', v2: 'TUR:1' },
+    { t: 305, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '207', s2: 'WINNER', v2: '208' },
+    { t: 306, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '209', s2: 'LEAGUE_RANK', v2: 'CZE:1' }, 
+    { t: 307, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '210', s2: 'LEAGUE_RANK', v2: 'UKR:1' } 
+  ];
+
+  const bracketStmt = db.prepare("INSERT INTO brackets (target_id, round_name, path, team1_source, team1_value, team2_source, team2_value) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  for (const b of bInit) {
+    bracketStmt.run(b.t, b.r, b.p, b.s1, b.v1, b.s2, b.v2);
+  }
+  bracketStmt.finalize();
 
 });
