@@ -319,32 +319,75 @@ app.post('/generate-pots', (req, res) => {
 
     const q4Winners = rows.map(r => r.winner);
 
-    const directQualifiers = [
-      "Atlético Madrid (ESP)", "Bayern Munich (GER)", "Real Madrid (ESP)", "Paris SG (FRA)",
-      "Arsenal (ENG)", "Inter Milan (ITA)", "FC Barcelone (ESP)", "Sporting CP (POR)", "Aston Villa (ENG)",
-      "Manchester City (ENG)", "Borussia Dortmund (GER)", "TSG Hoffenheim (GER)", "AC Milan (ITA)",
-      "PSV Eindhoven (NED)", "SSC Napoli (ITA)", "Villarreal CF (ESP)", "Juventus (ITA)", "RB Leipzig (GER)",
-      "Olympique Lyonnais (FRA)", "RC Lens (FRA)", "FC Porto (POR)", "Club Brugge (BEL)", "Como 1907 (ITA)",
-      "Celtic Glasgow (SCO)", "VfB Stuttgart (GER)", "Galatasaray (TUR)", "Slavia Prague (CZE)",
-      "Shakhtar Donetsk (UKR)", "Feyenoord (NED)"
-    ];
+    const baseDirectsSQL = `
+      SELECT team_name, association FROM league_standings WHERE
+        (association IN ('ENG', 'ESP', 'GER', 'ITA') AND rank <= 4) OR
+        (association = 'FRA' AND rank <= 3) OR
+        (association = 'NED' AND rank <= 2) OR
+        (association IN ('POR', 'BEL', 'AUT') AND rank = 1) OR
+        is_direct_rebalance = 1
+    `;
 
-    const allTeams = [...q4Winners, ...directQualifiers];
-    
-    // Sort logic to emulate pots (very simplistic for now, just split into 4 pots of 9)
-    // In a real app we'd sort by coefficient. We shuffle a bit but keep top dogs high.
-    const pot1 = allTeams.slice(0, 9);
-    const pot2 = allTeams.slice(9, 18);
-    const pot3 = allTeams.slice(18, 27);
-    const pot4 = allTeams.slice(27, 36);
+    db.all(baseDirectsSQL, [], (err, baseDirects) => {
+      if (err) return res.status(500).json({ error: err.message });
 
-    res.json({ success: true, pots: { pot1, pot2, pot3, pot4 } });
+      const directQualifiers = baseDirects.map(r => `${r.team_name} (${r.association})`);
+
+      const allTeams = [...directQualifiers, ...q4Winners];
+      
+      // Query fantasy coefficients to sort them properly for our simulation!
+      db.all("SELECT * FROM club_coefficients_fantasy", [], (err, coefRows) => {
+        if (err) return res.status(500).json({ error: err.message });
+      
+      const coefMap = {};
+      coefRows.forEach(c => coefMap[c.team_name] = c.coefficient);
+
+      // De-duplicate in case of strict overlaps
+      const uniqueTeams = [...new Set(allTeams)];
+
+      // Sort strictly by UEFA Club Coefficient (Descending)
+      uniqueTeams.sort((a, b) => {
+        const coefA = coefMap[a] || 0;
+        const coefB = coefMap[b] || 0;
+        return coefB - coefA;
+      });
+
+      // Split into 4 pots of up to 9
+      const pot1 = uniqueTeams.slice(0, 9);
+      const pot2 = uniqueTeams.slice(9, 18);
+      const pot3 = uniqueTeams.slice(18, 27);
+      const pot4 = uniqueTeams.slice(27, 36);
+
+      res.json({ success: true, pots: { pot1, pot2, pot3, pot4 } });
+    });
+  });
   });
 });
 
 import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+app.get('/coefficients', (req, res) => {
+  db.all("SELECT * FROM club_coefficients ORDER BY coefficient DESC", [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+app.get('/coefficients-fantasy', (req, res) => {
+  db.all("SELECT * FROM club_coefficients_fantasy ORDER BY coefficient DESC", [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+app.get('/standings', (req, res) => {
+  db.all("SELECT * FROM league_standings ORDER BY association ASC, rank ASC", [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
 
 // Serve static files from the 'dist' directory
 app.use(express.static(path.join(__dirname, 'dist')));

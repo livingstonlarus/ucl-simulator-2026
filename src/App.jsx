@@ -2,17 +2,48 @@ import { useState, useEffect } from 'react';
 import './index.css';
 import logos from './logoMapping.json';
 
+const flags = {
+  FRA: '🇫🇷', ENG: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', ESP: '🇪🇸', ITA: '🇮🇹', GER: '🇩🇪', POR: '🇵🇹', NED: '🇳🇱', BEL: '🇧🇪', TUR: '🇹🇷',
+  DEN: '🇩🇰', GRE: '🇬🇷', CZE: '🇨🇿', SCO: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', AUT: '🇦🇹', SUI: '🇨🇭', CRO: '🇭🇷', POL: '🇵🇱', NOR: '🇳🇴',
+  SVK: '🇸🇰', MKD: '🇲🇰', KAZ: '🇰🇿', SMR: '🇸🇲', CYP: '🇨🇾', GEO: '🇬🇪', FIN: '🇫🇮', EST: '🇪🇪', BUL: '🇧🇬',
+  AND: '🇦🇩', ISR: '🇮🇱', SVN: '🇸🇮', SWE: '🇸🇪', FRO: '🇫🇴', AZE: '🇦🇿', GIB: '🇬🇮', HUN: '🇭🇺', WAL: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+  ROU: '🇷🇴', LVA: '🇱🇻', IRL: '🇮🇪', ISL: '🇮🇸', BIH: '🇧🇦', LTU: '🇱🇹', BLR: '🇧🇾', ARM: '🇦🇲', MDA: '🇲🇩'
+};
+
 function App() {
   const [party, setParty] = useState(null);
   const [parties, setParties] = useState([]);
   const [matches, setMatches] = useState([]);
   const [newPartyName, setNewPartyName] = useState("");
   const [pots, setPots] = useState(null);
+  const [standings, setStandings] = useState([]);
+  const [coeffs, setCoeffs] = useState({});
+  const [fantasyCoeffs, setFantasyCoeffs] = useState({});
 
   useEffect(() => {
     fetch('/parties')
       .then(res => res.json())
       .then(data => setParties(data || []));
+
+    fetch('/standings')
+      .then(res => res.json())
+      .then(data => setStandings(data || []));
+
+    fetch('/coefficients')
+      .then(res => res.json())
+      .then(data => {
+        const coefMap = {};
+        if (data) data.forEach(c => coefMap[c.team_name] = c.coefficient);
+        setCoeffs(coefMap);
+      });
+
+    fetch('/coefficients-fantasy')
+      .then(res => res.json())
+      .then(data => {
+        const coefMap = {};
+        if (data) data.forEach(c => coefMap[c.team_name] = c.coefficient);
+        setFantasyCoeffs(coefMap);
+      });
   }, []);
 
   useEffect(() => {
@@ -182,6 +213,68 @@ function App() {
             ))}
           </div>
         </div>
+
+        <div className="standings-viewer">
+          <h3>Classements Nationaux (Base de Données)</h3>
+          <p style={{textAlign: 'center', opacity: 0.7, marginBottom: '1rem'}}>Voici la simulation dont partira le moteur (Top 5 personnalisés, etc.)</p>
+          <div className="standings-grid">
+            {Object.entries(
+              standings.reduce((acc, s) => {
+                if(!acc[s.association]) acc[s.association] = [];
+                acc[s.association].push(s);
+                return acc;
+              }, {})
+            ).map(([assoc, teams]) => (
+              <div key={assoc} className="standings-card">
+                <div className="standings-card-header">{flags[assoc] || ''} {assoc}</div>
+                <div className="standings-list">
+                  {teams.map(t => (
+                    <div key={t.id} className="standings-row">
+                      <span className="standings-rank">{t.rank}</span>
+                      <span className="standings-team">{t.team_name}</span>
+                      {t.rank === 1 && <span className="standings-champ" title="Champion">🏆</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center', width: '100%', maxWidth: '1200px', marginTop: '4rem' }}>
+          
+          <div className="coeff-board" style={{ margin: 0, flex: '1 1 400px' }}>
+            <div className="coeff-header" style={{ opacity: 0.8, fontSize: '1.1rem' }}>Classement UEFA 5 Ans (Réalité)</div>
+            <div className="coeff-list">
+              {Object.entries(coeffs)
+                .sort((a, b) => b[1] - a[1])
+                .map(([team, pts], index) => (
+                  <div key={team} className="coeff-item">
+                    <span className="coeff-rank">{index + 1}.</span>
+                    <span className="coeff-team">{team}</span>
+                    <span className="coeff-pts" style={{ color: '#888' }}>{Math.round(pts)}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          <div className="coeff-board" style={{ margin: 0, flex: '1 1 400px', border: '2px solid var(--neon-cyan)' }}>
+            <div className="coeff-header">Classement UEFA 5 Ans (Fantasy)</div>
+            <div className="coeff-list">
+              {Object.entries(fantasyCoeffs)
+                .sort((a, b) => b[1] - a[1])
+                .map(([team, pts], index) => (
+                  <div key={team} className="coeff-item">
+                    <span className="coeff-rank">{index + 1}.</span>
+                    <span className="coeff-team">{team}</span>
+                    <span className="coeff-pts">{Math.round(pts)}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+        </div>
+
       </div>
     );
   }
@@ -276,9 +369,12 @@ function App() {
                 <h3>Chapeau {index + 1}</h3>
                 <ul>
                   {pots[potKey].map(team => (
-                    <li key={team}>
-                      {getLogo(team) && <img src={getLogo(team)} alt="" className="pot-team-logo" />}
-                      {team}
+                    <li key={team} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {getLogo(team) && <img src={getLogo(team)} alt="" className="pot-team-logo" />}
+                        <span>{team}</span>
+                      </div>
+                      {fantasyCoeffs[team] ? <strong style={{ color: '#00F0FF', fontSize: '0.85rem' }}>{Math.round(fantasyCoeffs[team])}</strong> : null}
                     </li>
                   ))}
                 </ul>
