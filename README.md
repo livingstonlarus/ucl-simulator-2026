@@ -55,12 +55,12 @@ The production environment correctly utilizes the **host's Git tracking** combin
     ```bash
     git pull origin main
     ```
-5. If JavaScript packages changed, install and rebuild the React client directly into the `/dist` bundle folder:
+5. JavaScript packages must be built directly within the running pod (since the root host lacks Node/NPM) to correctly populate the mounted `/dist` bundle folder:
     ```bash
-    npm install
-    npm run build
+    kubectl exec -it deployment/ucl-simulator -n ucl-simulator -- npm install
+    kubectl exec -it deployment/ucl-simulator -n ucl-simulator -- npm run build
     ```
-6. Gracefully restart the backend pod to mount the new built bundle and recognize any Express changes:
+6. Gracefully restart the backend pod to mount the new built bundle and recognize any logic updates:
     ```bash
     kubectl rollout restart deploy ucl-simulator -n ucl-simulator
     ```
