@@ -67,146 +67,15 @@ db.serialize(() => {
     }
   });
 
-  // Helper to init Q1 for a party
-  const initQ1 = (partyId) => {
-    // Q1 matches determined by LEAGUE_RANK of specific associations
-    const q1Associations = [
-      ['SVK', 'MKD'], ['KAZ', 'SMR'], ['CYP', 'GEO'], ['FIN', 'EST'],
-      ['BUL', 'AND'], ['ISR', 'SVN'], ['SWE', 'FRO'], ['AZE', 'GIB'],
-      ['HUN', 'WAL'], ['ROU', 'LVA'], ['IRL', 'ISL'], ['BIH', 'LTU'],
-      ['BLR', 'ARM'], ['MDA', 'KAZ'] // Note: KAZ has 2 entries in test data, but using it as defined
-    ];
-
-    db.all("SELECT * FROM league_standings WHERE rank = 1", (err, champs) => {
-      const champMap = {};
-      if (champs) champs.forEach(c => champMap[c.association] = `${c.team_name} (${c.association})`);
-      
-      const stmt = db.prepare("INSERT INTO matches (id, party_id, team1, team2, s1a, s2a, s1r, s2r, winner, round, path) VALUES (?, ?, ?, ?, '', '', '', '', null, 'Q1', 'CH')");
-      
-      let matchId = 1;
-      for (const [a1, a2] of q1Associations) {
-        // Fallback names if not in DB
-        const t1 = champMap[a1] || `Champion ${a1}`;
-        const t2 = champMap[a2] || `Champion ${a2}`;
-        stmt.run(matchId++, partyId, t1, t2);
-      }
-      stmt.finalize();
-    });
-  };
-
-  // Check if simulation 1 needs initialization
+  // Initialize Q1 dynamically for the default simulation if empty
   db.get("SELECT COUNT(*) as count FROM matches WHERE party_id = 1", (err, row) => {
     if (row && row.count === 0) {
-      initQ1(1);
+      generateRound(1, 'Q1').catch(e => console.error("Error init Q1:", e));
     }
   });
-
-  app.locals.initQ1 = initQ1;
-
-  // Initialize fixed bracket definitions if empty (dynamically linked to league ranks!)
-  db.get("SELECT COUNT(*) as count FROM brackets", (err, row) => {
-    if (row && row.count === 0) {
-      const bInit = [
-        // Q2 League Path
-        { t: 101, r: 'Q2', p: 'LP', s1: 'LEAGUE_RANK', v1: 'TUR:2', s2: 'LEAGUE_RANK', v2: 'CZE:2' },
-        { t: 102, r: 'Q2', p: 'LP', s1: 'LEAGUE_RANK', v1: 'BEL:2', s2: 'LEAGUE_RANK', v2: 'NED:3' },
-        { t: 103, r: 'Q2', p: 'LP', s1: 'LEAGUE_RANK', v1: 'SCO:2', s2: 'LEAGUE_RANK', v2: 'SUI:2' },
-        // Q2 Champions Path
-        { t: 104, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'CRO:1', s2: 'WINNER', v2: '11' },
-        { t: 105, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'SUI:1', s2: 'WINNER', v2: '7' },
-        { t: 106, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'DEN:1', s2: 'WINNER', v2: '12' },
-        { t: 107, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'GRE:1', s2: 'WINNER', v2: '3' },
-        { t: 108, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'POL:1', s2: 'WINNER', v2: '14' },
-        { t: 109, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'NOR:1', s2: 'WINNER', v2: '1' },
-        { t: 110, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'CYP:1', s2: 'WINNER', v2: '4' }, // Usually CYP:1
-        { t: 111, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'AUT:1', s2: 'WINNER', v2: '5' },
-        { t: 112, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'SCO:1', s2: 'WINNER', v2: '8' },
-        { t: 113, r: 'Q2', p: 'CH', s1: 'WINNER', v2: '9',      s2: 'WINNER', v2: '10' },
-        { t: 114, r: 'Q2', p: 'CH', s1: 'WINNER', v2: '6',      s2: 'WINNER', v2: '13' },
-        { t: 115, r: 'Q2', p: 'CH', s1: 'WINNER', v2: '2',      s2: 'LEAGUE_RANK', v2: 'MDA:1' },
-        // Q3 League Path
-        { t: 201, r: 'Q3', p: 'LP', s1: 'WINNER', v1: '101', s2: 'LEAGUE_RANK', v2: 'FRA:4' },
-        { t: 202, r: 'Q3', p: 'LP', s1: 'WINNER', v1: '102', s2: 'LEAGUE_RANK', v2: 'POR:3' }, // Often Benfica
-        { t: 203, r: 'Q3', p: 'LP', s1: 'WINNER', v1: '103', s2: 'LEAGUE_RANK', v2: 'NED:2' },
-        { t: 204, r: 'Q3', p: 'LP', s1: 'LEAGUE_RANK', v1: 'AUT:2', s2: 'TEAM', v2: 'Dynamo Kyiv (UKR)' },
-        // Q3 Champions Path
-        { t: 205, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '104', s2: 'WINNER', v2: '105' },
-        { t: 206, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '106', s2: 'WINNER', v2: '107' },
-        { t: 207, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '108', s2: 'WINNER', v2: '109' },
-        { t: 208, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '110', s2: 'WINNER', v2: '111' },
-        { t: 209, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '112', s2: 'WINNER', v2: '113' },
-        { t: 210, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '114', s2: 'WINNER', v2: '115' },
-        // Q4 (Play-Offs) League Path
-        { t: 301, r: 'Q4', p: 'LP', s1: 'WINNER', v1: '201', s2: 'WINNER', v2: '202' },
-        { t: 302, r: 'Q4', p: 'LP', s1: 'WINNER', v1: '203', s2: 'WINNER', v2: '204' },
-        // Q4 (Play-Offs) Champions Path
-        { t: 303, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '205', s2: 'TEAM', v2: 'Crvena zvezda (SRB)' },
-        { t: 304, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '206', s2: 'TEAM', v2: 'Young Boys (SUI)' }, // Updated CP entrant
-        { t: 305, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '207', s2: 'WINNER', v2: '208' },
-        { t: 306, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '209', s2: 'TEAM', v2: 'Maccabi Haifa (ISR)' }, // Updated CP entrant
-        { t: 307, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '210', s2: 'TEAM', v2: 'Ludogorets (BUL)' } // Updated CP entrant, avoided duplicates from Q1
-      ];
-      const stmt = db.prepare("INSERT INTO brackets (target_id, round_name, path, team1_source, team1_value, team2_source, team2_value) VALUES (?, ?, ?, ?, ?, ?, ?)");
-      for (const b of bInit) {
-        stmt.run(b.t, b.r, b.p, b.s1, b.v1, b.s2, b.v2);
-      }
-      stmt.finalize();
-    }
-  });
-
 });
 
-// --- PARTIES API ---
-
-app.get('/parties', (req, res) => {
-  db.all("SELECT * FROM parties ORDER BY created_at DESC", (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
-});
-
-app.post('/parties', (req, res) => {
-  const { name } = req.body;
-  db.run("INSERT INTO parties (name) VALUES (?)", [name || "Nouvelle Simulation"], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    const newId = this.lastID;
-    app.locals.initQ1(newId);
-    res.json({ id: newId, name: name || "Nouvelle Simulation" });
-  });
-});
-
-// --- MATCHES API ---
-
-app.get('/matches', (req, res) => {
-  const partyId = req.query.partyId || 1;
-  db.all("SELECT * FROM matches WHERE party_id = ?", [partyId], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    const mapped = rows.map(r => ({
-      ...r,
-      s1a: r.s1a === null ? "" : r.s1a,
-      s2a: r.s2a === null ? "" : r.s2a,
-      s1r: r.s1r === null ? "" : r.s1r,
-      s2r: r.s2r === null ? "" : r.s2r
-    }));
-    res.json(mapped);
-  });
-});
-
-app.put('/matches/:id', (req, res) => {
-  const { s1a, s2a, s1r, s2r, winner, partyId } = req.body;
-  const id = req.params.id;
-  db.run(
-    "UPDATE matches SET s1a = ?, s2a = ?, s1r = ?, s2r = ?, winner = ? WHERE id = ? AND party_id = ?",
-    [s1a, s2a, s1r, s2r, winner, id, partyId || 1],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ updated: this.changes });
-    }
-  );
-});
-
-// --- SHARED GENERATION HELPER ---
-const generateRound = async (partyId, roundName) => {
+async function generateRound(partyId, roundName) {
   return new Promise((resolve, reject) => {
     db.all("SELECT * FROM brackets WHERE round_name = ?", [roundName], async (err, bracketRows) => {
       if (err) return reject(err);
@@ -276,7 +145,61 @@ const generateRound = async (partyId, roundName) => {
       });
     });
   });
-};
+}
+
+// --- PARTIES API ---
+
+app.get('/parties', (req, res) => {
+  db.all("SELECT * FROM parties ORDER BY created_at DESC", (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+app.post('/parties', (req, res) => {
+  const { name } = req.body;
+  db.run("INSERT INTO parties (name) VALUES (?)", [name || "Nouvelle Simulation"], async function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    const newId = this.lastID;
+    try {
+      await generateRound(newId, 'Q1');
+    } catch (e) {
+      console.error("Erreur gènèration Q1 :", e);
+    }
+    res.json({ id: newId, name: name || "Nouvelle Simulation" });
+  });
+});
+
+// --- MATCHES API ---
+
+app.get('/matches', (req, res) => {
+  const partyId = req.query.partyId || 1;
+  db.all("SELECT * FROM matches WHERE party_id = ?", [partyId], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const mapped = rows.map(r => ({
+      ...r,
+      s1a: r.s1a === null ? "" : r.s1a,
+      s2a: r.s2a === null ? "" : r.s2a,
+      s1r: r.s1r === null ? "" : r.s1r,
+      s2r: r.s2r === null ? "" : r.s2r
+    }));
+    res.json(mapped);
+  });
+});
+
+app.put('/matches/:id', (req, res) => {
+  const { s1a, s2a, s1r, s2r, winner, partyId } = req.body;
+  const id = req.params.id;
+  db.run(
+    "UPDATE matches SET s1a = ?, s2a = ?, s1r = ?, s2r = ?, winner = ? WHERE id = ? AND party_id = ?",
+    [s1a, s2a, s1r, s2r, winner, id, partyId || 1],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ updated: this.changes });
+    }
+  );
+});
+
 
 app.post('/generate-q2', async (req, res) => {
   const partyId = req.query.partyId || 1;
@@ -321,11 +244,7 @@ app.post('/generate-pots', (req, res) => {
 
     const baseDirectsSQL = `
       SELECT team_name, association FROM league_standings WHERE
-        (association IN ('ENG', 'ESP', 'GER', 'ITA') AND rank <= 4) OR
-        (association = 'FRA' AND rank <= 3) OR
-        (association = 'NED' AND rank <= 2) OR
-        (association IN ('POR', 'BEL', 'AUT') AND rank = 1) OR
-        is_direct_rebalance = 1
+        is_direct_qualifier = 1 OR is_direct_rebalance = 1
     `;
 
     db.all(baseDirectsSQL, [], (err, baseDirects) => {
