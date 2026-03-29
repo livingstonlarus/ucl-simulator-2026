@@ -150,8 +150,10 @@ async function generateRound(partyId, roundName) {
 // --- PARTIES API ---
 
 app.get('/parties', (req, res) => {
+  console.log("DEBUG: GET /parties called at", new Date().toISOString());
   db.all("SELECT * FROM parties ORDER BY created_at DESC", (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
+    console.log("DEBUG: Returning parties:", rows);
     res.json(rows);
   });
 });

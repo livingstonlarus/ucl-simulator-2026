@@ -232,6 +232,7 @@ function App() {
                   {teams.map(t => (
                     <div key={t.id} className="standings-row">
                       <span className="standings-rank">{t.rank}</span>
+                      {getLogo(t.team_name) && <img src={getLogo(t.team_name)} alt="" className="team-logo" style={{width: '20px', height: '20px', marginRight: '8px'}} />}
                       <span className="standings-team">{t.team_name}</span>
                       {t.rank === 1 && <span className="standings-champ" title="Champion">🏆</span>}
                     </div>
@@ -252,6 +253,7 @@ function App() {
                 .map(([team, pts], index) => (
                   <div key={team} className="coeff-item">
                     <span className="coeff-rank">{index + 1}.</span>
+                    {getLogo(team) && <img src={getLogo(team)} alt="" className="team-logo" style={{width: '24px', height: '24px', marginRight: '8px'}} />}
                     <span className="coeff-team">{team}</span>
                     <span className="coeff-pts" style={{ color: '#888' }}>{Math.round(pts)}</span>
                   </div>
@@ -267,6 +269,7 @@ function App() {
                 .map(([team, pts], index) => (
                   <div key={team} className="coeff-item">
                     <span className="coeff-rank">{index + 1}.</span>
+                    {getLogo(team) && <img src={getLogo(team)} alt="" className="team-logo" style={{width: '24px', height: '24px', marginRight: '8px'}} />}
                     <span className="coeff-team">{team}</span>
                     <span className="coeff-pts">{Math.round(pts)}</span>
                   </div>

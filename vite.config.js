@@ -11,7 +11,10 @@ export default defineConfig({
       '/generate-q2': 'http://localhost:3000',
       '/generate-q3': 'http://localhost:3000',
       '/generate-q4': 'http://localhost:3000',
-      '/generate-pots': 'http://localhost:3000'
+      '/generate-pots': 'http://localhost:3000',
+      '/standings': 'http://localhost:3000',
+      '/coefficients': 'http://localhost:3000',
+      '/coefficients-fantasy': 'http://localhost:3000'
     },
     watch: {
       usePolling: true,
