@@ -28,47 +28,70 @@ db.serialize(() => {
     s1r TEXT,
     s2r TEXT,
     winner TEXT,
+    round TEXT,
+    path TEXT,
     PRIMARY KEY (id, party_id)
   )`, (err) => {
-    // If table existed, it might not have party_id. Attempt to add it.
-    db.run("ALTER TABLE matches ADD COLUMN party_id INTEGER", (err) => {
-      // Ignored if already exists
-    });
+    // Migration: ensure columns exist
+    db.run("ALTER TABLE matches ADD COLUMN round TEXT", (err) => {});
+    db.run("ALTER TABLE matches ADD COLUMN path TEXT", (err) => {});
   });
+
+  // 3. Create teams table
+  db.run(`CREATE TABLE IF NOT EXISTS teams (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE,
+    coefficient REAL,
+    association TEXT,
+    is_champion INTEGER DEFAULT 0
+  )`);
+
+  // 4. Create brackets table
+  db.run(`CREATE TABLE IF NOT EXISTS brackets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_id INTEGER,
+    round_name TEXT,
+    path TEXT,
+    team1_source TEXT, -- 'TEAM', 'WINNER', 'LOSER'
+    team1_value TEXT,
+    team2_source TEXT,
+    team2_value TEXT
+  )`);
 
   // Migration: If we have old data (without party_id in the row check, though SQLite is flexible)
   // Let's ensure at least one party exists if we have matches
   db.get("SELECT COUNT(*) as count FROM parties", (err, row) => {
     if (row && row.count === 0) {
       db.run("INSERT INTO parties (id, name) VALUES (1, 'Simulation 1')");
-      // If there are existing matches without party_id, they will be handled by the default
       db.run("UPDATE matches SET party_id = 1 WHERE party_id IS NULL");
     }
   });
 
   // Helper to init Q1 for a party
   const initQ1 = (partyId) => {
-    const initialMatches = [
-      { id: 1, team1: "Slovan Bratislava (SVK)", team2: "Struga (MKD)" },
-      { id: 2, team1: "Kairat Almaty (KAZ)", team2: "Virtus (SMR)" },
-      { id: 3, team1: "Pafos FC (CYP)", team2: "Dinamo Batumi (GEO)" },
-      { id: 4, team1: "HJK Helsinki (FIN)", team2: "Flora Tallinn (EST)" },
-      { id: 5, team1: "Ludogorets (BUL)", team2: "UE Santa Coloma (AND)" },
-      { id: 6, team1: "Maccabi Tel-Aviv (ISR)", team2: "Celje (SVN)" },
-      { id: 7, team1: "Malmö FF (SWE)", team2: "KÍ Klaksvík (FRO)" },
-      { id: 8, team1: "Qarabağ (AZE)", team2: "Lincoln Red Imps (GIB)" },
-      { id: 9, team1: "Ferencváros (HUN)", team2: "The New Saints (WAL)" },
-      { id: 10, team1: "FCSB (ROU)", team2: "RFS (LVA)" },
-      { id: 11, team1: "Shamrock Rovers (IRL)", team2: "Víkingur Reykjavík (ISL)" },
-      { id: 12, team1: "Zrinjski Mostar (BIH)", team2: "Panevėžys (LTU)" },
-      { id: 13, team1: "Dinamo Minsk (BLR)", team2: "Pyunik (ARM)" },
-      { id: 14, team1: "Petrocub Hîncești (MDA)", team2: "Ordabasy (KAZ)" }
+    // Q1 matches determined by LEAGUE_RANK of specific associations
+    const q1Associations = [
+      ['SVK', 'MKD'], ['KAZ', 'SMR'], ['CYP', 'GEO'], ['FIN', 'EST'],
+      ['BUL', 'AND'], ['ISR', 'SVN'], ['SWE', 'FRO'], ['AZE', 'GIB'],
+      ['HUN', 'WAL'], ['ROU', 'LVA'], ['IRL', 'ISL'], ['BIH', 'LTU'],
+      ['BLR', 'ARM'], ['MDA', 'KAZ'] // Note: KAZ has 2 entries in test data, but using it as defined
     ];
-    const stmt = db.prepare("INSERT INTO matches (id, party_id, team1, team2, s1a, s2a, s1r, s2r, winner) VALUES (?, ?, ?, ?, '', '', '', '', null)");
-    for (const m of initialMatches) {
-      stmt.run(m.id, partyId, m.team1, m.team2);
-    }
-    stmt.finalize();
+
+    db.all("SELECT * FROM league_standings WHERE rank = 1", (err, champs) => {
+      const champMap = {};
+      if (champs) champs.forEach(c => champMap[c.association] = `${c.team_name} (${c.association})`);
+      
+      const stmt = db.prepare("INSERT INTO matches (id, party_id, team1, team2, s1a, s2a, s1r, s2r, winner, round, path) VALUES (?, ?, ?, ?, '', '', '', '', null, 'Q1', 'CH')");
+      
+      let matchId = 1;
+      for (const [a1, a2] of q1Associations) {
+        // Fallback names if not in DB
+        const t1 = champMap[a1] || `Champion ${a1}`;
+        const t2 = champMap[a2] || `Champion ${a2}`;
+        stmt.run(matchId++, partyId, t1, t2);
+      }
+      stmt.finalize();
+    });
   };
 
   // Check if simulation 1 needs initialization
@@ -79,6 +102,58 @@ db.serialize(() => {
   });
 
   app.locals.initQ1 = initQ1;
+
+  // Initialize fixed bracket definitions if empty (dynamically linked to league ranks!)
+  db.get("SELECT COUNT(*) as count FROM brackets", (err, row) => {
+    if (row && row.count === 0) {
+      const bInit = [
+        // Q2 League Path
+        { t: 101, r: 'Q2', p: 'LP', s1: 'LEAGUE_RANK', v1: 'TUR:2', s2: 'LEAGUE_RANK', v2: 'CZE:2' },
+        { t: 102, r: 'Q2', p: 'LP', s1: 'LEAGUE_RANK', v1: 'BEL:2', s2: 'LEAGUE_RANK', v2: 'NED:3' },
+        { t: 103, r: 'Q2', p: 'LP', s1: 'LEAGUE_RANK', v1: 'SCO:2', s2: 'LEAGUE_RANK', v2: 'SUI:2' },
+        // Q2 Champions Path
+        { t: 104, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'CRO:1', s2: 'WINNER', v2: '11' },
+        { t: 105, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'SUI:1', s2: 'WINNER', v2: '7' },
+        { t: 106, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'DEN:1', s2: 'WINNER', v2: '12' },
+        { t: 107, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'GRE:1', s2: 'WINNER', v2: '3' },
+        { t: 108, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'POL:1', s2: 'WINNER', v2: '14' },
+        { t: 109, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'NOR:1', s2: 'WINNER', v2: '1' },
+        { t: 110, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'CYP:1', s2: 'WINNER', v2: '4' }, // Usually CYP:1
+        { t: 111, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'AUT:1', s2: 'WINNER', v2: '5' },
+        { t: 112, r: 'Q2', p: 'CH', s1: 'LEAGUE_RANK', v1: 'SCO:1', s2: 'WINNER', v2: '8' },
+        { t: 113, r: 'Q2', p: 'CH', s1: 'WINNER', v2: '9',      s2: 'WINNER', v2: '10' },
+        { t: 114, r: 'Q2', p: 'CH', s1: 'WINNER', v2: '6',      s2: 'WINNER', v2: '13' },
+        { t: 115, r: 'Q2', p: 'CH', s1: 'WINNER', v2: '2',      s2: 'LEAGUE_RANK', v2: 'MDA:1' },
+        // Q3 League Path
+        { t: 201, r: 'Q3', p: 'LP', s1: 'WINNER', v1: '101', s2: 'LEAGUE_RANK', v2: 'FRA:4' },
+        { t: 202, r: 'Q3', p: 'LP', s1: 'WINNER', v1: '102', s2: 'LEAGUE_RANK', v2: 'POR:3' }, // Often Benfica
+        { t: 203, r: 'Q3', p: 'LP', s1: 'WINNER', v1: '103', s2: 'LEAGUE_RANK', v2: 'NED:2' },
+        { t: 204, r: 'Q3', p: 'LP', s1: 'LEAGUE_RANK', v1: 'AUT:2', s2: 'TEAM', v2: 'Dynamo Kyiv (UKR)' },
+        // Q3 Champions Path
+        { t: 205, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '104', s2: 'WINNER', v2: '105' },
+        { t: 206, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '106', s2: 'WINNER', v2: '107' },
+        { t: 207, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '108', s2: 'WINNER', v2: '109' },
+        { t: 208, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '110', s2: 'WINNER', v2: '111' },
+        { t: 209, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '112', s2: 'WINNER', v2: '113' },
+        { t: 210, r: 'Q3', p: 'CH', s1: 'WINNER', v1: '114', s2: 'WINNER', v2: '115' },
+        // Q4 (Play-Offs) League Path
+        { t: 301, r: 'Q4', p: 'LP', s1: 'WINNER', v1: '201', s2: 'WINNER', v2: '202' },
+        { t: 302, r: 'Q4', p: 'LP', s1: 'WINNER', v1: '203', s2: 'WINNER', v2: '204' },
+        // Q4 (Play-Offs) Champions Path
+        { t: 303, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '205', s2: 'TEAM', v2: 'Crvena zvezda (SRB)' },
+        { t: 304, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '206', s2: 'TEAM', v2: 'Young Boys (SUI)' }, // Updated CP entrant
+        { t: 305, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '207', s2: 'WINNER', v2: '208' },
+        { t: 306, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '209', s2: 'TEAM', v2: 'Maccabi Haifa (ISR)' }, // Updated CP entrant
+        { t: 307, r: 'Q4', p: 'CH', s1: 'WINNER', v1: '210', s2: 'TEAM', v2: 'Ludogorets (BUL)' } // Updated CP entrant, avoided duplicates from Q1
+      ];
+      const stmt = db.prepare("INSERT INTO brackets (target_id, round_name, path, team1_source, team1_value, team2_source, team2_value) VALUES (?, ?, ?, ?, ?, ?, ?)");
+      for (const b of bInit) {
+        stmt.run(b.t, b.r, b.p, b.s1, b.v1, b.s2, b.v2);
+      }
+      stmt.finalize();
+    }
+  });
+
 });
 
 // --- PARTIES API ---
@@ -130,135 +205,107 @@ app.put('/matches/:id', (req, res) => {
   );
 });
 
-app.post('/generate-q2', (req, res) => {
-  const partyId = req.query.partyId || 1;
-  db.all("SELECT * FROM matches WHERE id <= 14 AND party_id = ?", [partyId], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    
-    const notFinished = rows.filter(r => !r.winner);
-    if (notFinished.length > 0) {
-      return res.status(400).json({ error: "Tous les matchs du Q1 ne sont pas terminés." });
-    }
+// --- SHARED GENERATION HELPER ---
+const generateRound = async (partyId, roundName) => {
+  return new Promise((resolve, reject) => {
+    db.all("SELECT * FROM brackets WHERE round_name = ?", [roundName], async (err, bracketRows) => {
+      if (err) return reject(err);
+      if (bracketRows.length === 0) return reject(new Error(`No bracket definition for ${roundName}`));
 
-    db.get("SELECT COUNT(*) as count FROM matches WHERE id > 14 AND party_id = ?", [partyId], (err, row) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (row.count > 0) {
-        return res.status(400).json({ error: "Le Q2 est déjà généré." });
-      }
+      db.all("SELECT * FROM matches WHERE party_id = ?", [partyId], async (err, existingMatches) => {
+        if (err) return reject(err);
 
-      const getWinner = (id) => rows.find(r => r.id === id).winner;
-      
-      const q2Matches = [
-        { id: 101, team1: "Fenerbahçe (TUR)", team2: "Sparta Prague (CZE)" },
-        { id: 102, team1: "Union Saint-Gilloise (BEL)", team2: "FC Twente (NED)" },
-        { id: 103, team1: "Rangers FC (SCO)", team2: "FC Basel (SUI)" }, 
+        // Utility to execute single DB queries as promises
+        const queryDB = (sql, params) => new Promise((res, rej) => {
+          db.get(sql, params, (e, row) => e ? rej(e) : res(row));
+        });
+
+        const newMatches = [];
+
+        // Resolve winners/teams for each bracket row
+        for (const b of bracketRows) {
+          const resolveSource = async (source, value) => {
+            if (source === 'TEAM') return value;
+            if (source === 'WINNER') {
+              const match = existingMatches.find(m => m.id === parseInt(value));
+              return match ? match.winner : null;
+            }
+            if (source === 'LEAGUE_RANK') {
+              const [assoc, rank] = value.split(':');
+              const row = await queryDB("SELECT team_name FROM league_standings WHERE association = ? AND rank = ?", [assoc, parseInt(rank)]);
+              return row ? `${row.team_name} (${assoc})` : `Unknown ${value}`;
+            }
+            return null;
+          };
+
+          const team1 = await resolveSource(b.team1_source, b.team1_value);
+          const team2 = await resolveSource(b.team2_source, b.team2_value);
+          
+          newMatches.push({
+            id: b.target_id,
+            party_id: partyId,
+            team1,
+            team2,
+            round: b.round_name,
+            path: b.path
+          });
+        }
+
+        // Validation: All teams must be resolved
+        const unresolved = newMatches.filter(m => !m.team1 || !m.team2 || m.team1.startsWith('Unknown') || m.team2.startsWith('Unknown'));
+        if (unresolved.length > 0) {
+          return reject(new Error("Some matches could not be resolved. Ensure previous rounds are finished and league standings are set."));
+        }
+
+        // Check if round already generated
+        const alreadyExists = existingMatches.some(m => newMatches.map(nm => nm.id).includes(m.id));
+        if (alreadyExists) return reject(new Error(`${roundName} already generated.`));
+
+        // Insert new matches
+        const stmt = db.prepare("INSERT INTO matches (id, party_id, team1, team2, s1a, s2a, s1r, s2r, winner, round, path) VALUES (?, ?, ?, ?, '', '', '', '', null, ?, ?)");
         
-        { id: 104, team1: "Dinamo Zagreb (CRO)", team2: getWinner(11) }, 
-        { id: 105, team1: "FC Thun (SUI)", team2: getWinner(7) },      
-        { id: 106, team1: "FC Midtjylland (DEN)", team2: getWinner(12) }, 
-        { id: 107, team1: "Olympiacos (GRE)", team2: getWinner(3) },      
-        { id: 108, team1: "Lech Poznań (POL)", team2: getWinner(14) },    
-        { id: 109, team1: "Bodø/Glimt (NOR)", team2: getWinner(1) },      
-        { id: 110, team1: "APOEL Nicosie (CYP)", team2: getWinner(4) },   
-        { id: 111, team1: "Rapid Wien (AUT)", team2: getWinner(5) },      
-        { id: 112, team1: "Hearts (SCO)", team2: getWinner(8) },          
-        { id: 113, team1: getWinner(9), team2: getWinner(10) }, 
-        { id: 114, team1: getWinner(6), team2: getWinner(13) }, 
-        { id: 115, team1: getWinner(2), team2: "Sheriff Tiraspol (MDA)" } 
-      ];
-
-      const stmt = db.prepare("INSERT INTO matches (id, party_id, team1, team2, s1a, s2a, s1r, s2r, winner) VALUES (?, ?, ?, ?, '', '', '', '', null)");
-      for (const m of q2Matches) {
-        stmt.run(m.id, partyId, m.team1, m.team2);
-      }
-      stmt.finalize();
-
-      res.json({ success: true, message: "Q2 généré avec succès !" });
+        db.serialize(() => {
+          for (const m of newMatches) {
+            stmt.run(m.id, m.party_id, m.team1, m.team2, m.round, m.path);
+          }
+          stmt.finalize((err) => {
+            if (err) reject(err);
+            else resolve(true);
+          });
+        });
+      });
     });
   });
+};
+
+app.post('/generate-q2', async (req, res) => {
+  const partyId = req.query.partyId || 1;
+  try {
+    await generateRound(partyId, 'Q2');
+    res.json({ success: true, message: "Q2 généré avec succès !" });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
-app.post('/generate-q3', (req, res) => {
+app.post('/generate-q3', async (req, res) => {
   const partyId = req.query.partyId || 1;
-  db.all("SELECT * FROM matches WHERE id >= 101 AND id <= 115 AND party_id = ?", [partyId], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    
-    // Check if Q2 is fully completed (all have winners)
-    if (rows.length < 15) return res.status(400).json({ error: "Q2 n'est pas encore généré." });
-    const notFinished = rows.filter(r => !r.winner);
-    if (notFinished.length > 0) return res.status(400).json({ error: "Tous les matchs du Q2 ne sont pas terminés." });
-
-    // Check if Q3 already exists
-    db.get("SELECT COUNT(*) as count FROM matches WHERE id >= 201 AND party_id = ?", [partyId], (err, row) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (row.count > 0) return res.status(400).json({ error: "Le Q3 est déjà généré." });
-
-      const getWinner = (id) => rows.find(r => r.id === id).winner;
-      
-      const q3Matches = [
-        // --- VOIE DE LA LIGUE (3 gagnants Q2 + 5 entrants) = 4 matchs ---
-        { id: 201, team1: getWinner(101), team2: "Olympique de Marseille (FRA)" },
-        { id: 202, team1: getWinner(102), team2: "SL Benfica (POR)" },
-        { id: 203, team1: getWinner(103), team2: "Feyenoord (NED)" },
-        { id: 204, team1: "RB Salzburg (AUT)", team2: "Dynamo Kyiv (UKR)" }, // 2 entrants s'affrontant
-        
-        // --- VOIE DES CHAMPIONS (12 gagnants Q2) = 6 matchs ---
-        { id: 205, team1: getWinner(104), team2: getWinner(105) }, 
-        { id: 206, team1: getWinner(106), team2: getWinner(107) },      
-        { id: 207, team1: getWinner(108), team2: getWinner(109) }, 
-        { id: 208, team1: getWinner(110), team2: getWinner(111) },      
-        { id: 209, team1: getWinner(112), team2: getWinner(113) },    
-        { id: 210, team1: getWinner(114), team2: getWinner(115) } 
-      ];
-
-      const stmt = db.prepare("INSERT INTO matches (id, party_id, team1, team2, s1a, s2a, s1r, s2r, winner) VALUES (?, ?, ?, ?, '', '', '', '', null)");
-      for (const m of q3Matches) {
-        stmt.run(m.id, partyId, m.team1, m.team2);
-      }
-      stmt.finalize();
-
-      res.json({ success: true, message: "Q3 généré avec succès !" });
-    });
-  });
+  try {
+    await generateRound(partyId, 'Q3');
+    res.json({ success: true, message: "Q3 généré avec succès !" });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
-app.post('/generate-q4', (req, res) => {
+app.post('/generate-q4', async (req, res) => {
   const partyId = req.query.partyId || 1;
-  db.all("SELECT * FROM matches WHERE id >= 201 AND id <= 210 AND party_id = ?", [partyId], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    
-    if (rows.length < 10) return res.status(400).json({ error: "Q3 n'est pas encore généré." });
-    const notFinished = rows.filter(r => !r.winner);
-    if (notFinished.length > 0) return res.status(400).json({ error: "Tous les matchs du Q3 ne sont pas terminés." });
-
-    db.get("SELECT COUNT(*) as count FROM matches WHERE id >= 301 AND party_id = ?", [partyId], (err, row) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (row.count > 0) return res.status(400).json({ error: "Le Q4 (Barrages) est déjà généré." });
-
-      const getWinner = (id) => rows.find(r => r.id === id).winner;
-      
-      const q4Matches = [
-        // --- BARRAGES VOIE DE LA LIGUE (4 gagnants Q3) = 2 matchs ---
-        { id: 301, team1: getWinner(201), team2: getWinner(202) },
-        { id: 302, team1: getWinner(203), team2: getWinner(204) },
-        
-        // --- BARRAGES VOIE DES CHAMPIONS (6 gagnants Q3 + 4 standard entrants) = 5 matchs ---
-        { id: 303, team1: getWinner(205), team2: "Crvena zvezda (SRB)" }, 
-        { id: 304, team1: getWinner(206), team2: "FC Copenhagen (DEN)" },      
-        { id: 305, team1: getWinner(207), team2: getWinner(208) }, 
-        { id: 306, team1: getWinner(209), team2: "PAOK Salonika (GRE)" },      
-        { id: 307, team1: getWinner(210), team2: "Qarabağ (AZE)" }    
-      ];
-
-      const stmt = db.prepare("INSERT INTO matches (id, party_id, team1, team2, s1a, s2a, s1r, s2r, winner) VALUES (?, ?, ?, ?, '', '', '', '', null)");
-      for (const m of q4Matches) {
-        stmt.run(m.id, partyId, m.team1, m.team2);
-      }
-      stmt.finalize();
-
-      res.json({ success: true, message: "Q4 généré avec succès !" });
-    });
-  });
+  try {
+    await generateRound(partyId, 'Q4');
+    res.json({ success: true, message: "PO (Q4) généré avec succès !" });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 app.post('/generate-pots', (req, res) => {
