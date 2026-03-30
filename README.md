@@ -22,17 +22,18 @@ A modern web application to simulate the UEFA Champions League 2026/2027 qualifi
     ```bash
     npm install
     ```
-2. **Start the Express API & SQLite Database:**
+
+2. **Start the Backend (Terminal 1):**
     ```bash
     node server.js
     ```
-    *The server runs locally on port 3000.*
+    *The API and SQLite database will start on port 3000.*
 
-3. **Start the Vite Frontend:**
+3. **Start the Frontend (Terminal 2):**
     ```bash
     npm run dev
     ```
-    *The frontend starts on port 5173.*
+    *The Vite-powered UI will start on port 5173 and proxy requests to the backend.*
 
 ## Scripts & Utilities
 

@@ -6,15 +6,15 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/matches': 'http://localhost:3000',
-      '/parties': 'http://localhost:3000',
-      '/generate-q2': 'http://localhost:3000',
-      '/generate-q3': 'http://localhost:3000',
-      '/generate-q4': 'http://localhost:3000',
-      '/generate-pots': 'http://localhost:3000',
-      '/standings': 'http://localhost:3000',
-      '/coefficients': 'http://localhost:3000',
-      '/coefficients-fantasy': 'http://localhost:3000'
+      '/matches': 'http://127.0.0.1:3000',
+      '/parties': 'http://127.0.0.1:3000',
+      '/generate-q2': 'http://127.0.0.1:3000',
+      '/generate-q3': 'http://127.0.0.1:3000',
+      '/generate-q4': 'http://127.0.0.1:3000',
+      '/generate-pots': 'http://127.0.0.1:3000',
+      '/standings': 'http://127.0.0.1:3000',
+      '/coefficients': 'http://127.0.0.1:3000',
+      '/coefficients-fantasy': 'http://127.0.0.1:3000'
     },
     watch: {
       usePolling: true,
