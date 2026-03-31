@@ -319,52 +319,33 @@ app.post('/generate-league-matches', (req, res) => {
     rows.forEach(r => pots[r.pot - 1].push(r.team_name));
 
     const shuffle = (array) => array.map(value => ({ value, sort: Math.random() })).sort((a, b) => a.sort - b.sort).map(({ value }) => value);
+    for(let i=0; i<4; i++) {
+       pots[i] = shuffle(pots[i]);
+    }
+
+    const getMatchdaysTemplate = () => [
+      [[0,3],[1,20],[2,5],[4,13],[11,6],[7,18],[33,8],[23,9],[24,10],[35,12],[14,28],[30,15],[25,16],[21,17],[27,19],[31,22],[26,34],[32,29]],
+      [[0,34],[1,30],[2,27],[3,4],[12,5],[6,32],[16,7],[23,8],[35,9],[10,31],[11,25],[13,22],[19,14],[20,15],[18,17],[33,21],[24,29],[28,26]],
+      [[9,0],[7,1],[11,2],[20,3],[4,33],[5,10],[30,6],[18,8],[27,12],[13,34],[24,14],[23,15],[16,32],[29,17],[31,19],[21,35],[22,28],[26,25]],
+      [[32,0],[35,1],[2,15],[12,3],[11,4],[13,5],[27,6],[19,7],[26,8],[9,18],[25,10],[33,14],[30,16],[31,17],[28,20],[29,21],[22,24],[34,23]],
+      [[30,0],[14,1],[2,24],[25,3],[28,4],[27,5],[22,6],[11,7],[8,16],[20,9],[34,10],[33,12],[26,13],[15,35],[17,19],[31,18],[32,21],[29,23]],
+      [[15,0],[13,1],[20,2],[19,3],[27,4],[26,5],[28,6],[9,7],[25,8],[10,21],[31,11],[22,12],[30,14],[29,16],[33,17],[34,18],[23,32],[35,24]],
+      [[21,0],[25,1],[22,2],[3,9],[30,4],[35,5],[6,14],[10,7],[20,8],[34,11],[31,12],[23,13],[33,15],[19,16],[17,27],[29,18],[28,24],[32,26]],
+      [[28,0],[34,1],[29,2],[31,3],[10,4],[16,5],[21,6],[24,7],[19,8],[33,9],[32,11],[25,12],[30,13],[22,14],[26,15],[23,17],[18,27],[35,20]]
+    ];
+
+    const teams = [...pots[0], ...pots[1], ...pots[2], ...pots[3]];
     const matches = [];
 
-    // Intra-pot matches: each plays 1 home, 1 away in a ring topology
-    for(let i=0; i<4; i++) {
-      const p = shuffle([...pots[i]]);
-      for(let j=0; j<p.length; j++) {
-        matches.push({ home: p[j], away: p[(j+1) % p.length] });
-      }
-    }
-
-    // Inter-pot matches: each plays 1 home, 1 away cleanly
-    const pairs = [[0,1], [0,2], [0,3], [1,2], [1,3], [2,3]];
-    for (const [p1, p2] of pairs) {
-      const g1 = pots[p1];
-      const g2 = pots[p2];
-      
-      let g2_shuffled = shuffle([...g2]);
-      // g1 plays at home vs g2_shuffled
-      for(let i=0; i<9; i++) {
-        matches.push({ home: g1[i], away: g2_shuffled[i] });
-      }
-
-      // g2_shuffled plays at home vs g1, but shifted by 1 to avoid direct back-to-back same opponent
-      for(let i=0; i<9; i++) {
-        matches.push({ home: g2_shuffled[(i+1)%9], away: g1[i] });
-      }
-    }
-
-    // Assign matchdays using a greedy approach, allowing up to 10 matchdays if strict 8 fails
-    const assignment = Array(144).fill(0);
-    const teamOccupied = Array.from({length: 12}, () => ({}));
-    for(let i=0; i<144; i++) {
-      const m = matches[i];
-      for(let d=1; d<=12; d++) {
-        if(!teamOccupied[d-1][m.home] && !teamOccupied[d-1][m.away]) {
-          teamOccupied[d-1][m.home] = true;
-          teamOccupied[d-1][m.away] = true;
-          assignment[i] = d;
-          break;
-        }
-      }
-    }
+    getMatchdaysTemplate().forEach((dayMatches, dayIndex) => {
+      dayMatches.forEach(([h, a]) => {
+        matches.push({ matchday: dayIndex + 1, home: teams[h], away: teams[a] });
+      });
+    });
 
     db.run("DELETE FROM league_matches WHERE party_id = ?", [partyId], () => {
       const stmt = db.prepare("INSERT INTO league_matches (party_id, matchday, home_team, away_team, home_score, away_score) VALUES (?, ?, ?, ?, '', '')");
-      matches.forEach((m, idx) => stmt.run(partyId, assignment[idx], m.home, m.away));
+      matches.forEach(m => stmt.run(partyId, m.matchday, m.home, m.away));
       stmt.finalize(() => {
         res.json({ success: true, count: matches.length });
       });
