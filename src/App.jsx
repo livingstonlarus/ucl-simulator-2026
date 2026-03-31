@@ -21,6 +21,7 @@ function App() {
   const [standings, setStandings] = useState([]);
   const [coeffs, setCoeffs] = useState({});
   const [fantasyCoeffs, setFantasyCoeffs] = useState({});
+  const [leagueMatches, setLeagueMatches] = useState([]);
 
   useEffect(() => {
     fetch('/parties')
@@ -58,6 +59,11 @@ function App() {
           }
         })
         .catch(e => console.error("Could not fetch matches:", e));
+
+      fetch(`/league-matches?partyId=${party.id}`)
+        .then(res => res.json())
+        .then(data => setLeagueMatches(data || []))
+        .catch(e => console.error(e));
     }
   }, [party]);
 
@@ -185,29 +191,70 @@ function App() {
       .catch(e => console.error(e));
   };
 
-  const handlePrint = () => {
-    if (!pots) return;
-    
+  const handleLoadCustomPots = () => {
+    fetch('/custom-pots')
+      .then(res => {
+        if (!res.ok) throw new Error("Erreur de chargement des chapeaux personnalisés.");
+        return res.json();
+      })
+      .then(data => {
+        if (data && data.pots) {
+          setPots(data.pots);
+          confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#00F0FF', '#7000FF', '#FFFFFF']
+          });
+        }
+      })
+      .catch(e => alert(e.message));
+  };
+
+  const handleLeagueMatchChange = (id, field, value) => {
+    setLeagueMatches(leagueMatches.map(m => {
+      if (m.id === id) {
+        const newMatch = { ...m, [field]: value };
+        fetch(`/league-matches/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ home_score: newMatch.home_score, away_score: newMatch.away_score })
+        }).catch(e => console.error(e));
+        return newMatch;
+      }
+      return m;
+    }));
+  };
+
+  const handleGenerateLeagueMatches = () => {
+    fetch(`/generate-league-matches?partyId=${party.id}`, { method: 'POST' })
+      .then(res => {
+        if (!res.ok) throw new Error("Erreur lors de la génération des matchs.");
+        return res.json();
+      })
+      .then(() => fetch(`/league-matches?partyId=${party.id}`))
+      .then(res => res.json())
+      .then(data => {
+        setLeagueMatches(data || []);
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#00F0FF', '#7000FF', '#FFFFFF'] });
+      })
+      .catch(e => alert(e.message));
+  };
+
+  const printTeams = (teamList) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       alert("Veuillez autoriser les pop-ups pour imprimer.");
       return;
     }
 
-    const allTeams = [];
-    Object.keys(pots).forEach(potKey => {
-      pots[potKey].forEach(team => {
-        allTeams.push({ team, pot: potKey });
-      });
-    });
-
-    const teamsHtml = allTeams.map(t => {
-      const staticLogo = getLogo(t.team);
-      const imgHtml = staticLogo ? `<img src="${staticLogo}" alt="${t.team}" />` : '<div style="height:20mm;"></div>';
+    const teamsHtml = teamList.map(teamName => {
+      const staticLogo = getLogo(teamName);
+      const imgHtml = staticLogo ? `<img src="${staticLogo}" alt="${teamName}" />` : '<div style="height:20mm;"></div>';
       return `
         <div class="cell">
           ${imgHtml}
-          <div class="team-name">${t.team}</div>
+          <div class="team-name">${teamName}</div>
         </div>
       `;
     }).join("");
@@ -217,7 +264,7 @@ function App() {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Imprimer les Logos des Chapeaux</title>
+        <title>Imprimer les Logos</title>
         <style>
           @page {
             size: A4;
@@ -306,6 +353,22 @@ function App() {
     printWindow.document.close();
   };
 
+  const handlePrint = () => {
+    if (!pots) return;
+    const allTeams = [];
+    Object.keys(pots).forEach(potKey => {
+      pots[potKey].forEach(team => allTeams.push(team));
+    });
+    printTeams(allTeams);
+  };
+
+  const handlePrintFantasy = () => {
+    const sortedTeams = Object.entries(fantasyCoeffs)
+      .sort((a, b) => b[1] - a[1])
+      .map(([team]) => team);
+    printTeams(sortedTeams);
+  };
+
   const getLogo = (teamFull) => {
     if (!teamFull) return null;
     const teamName = teamFull.split(' (')[0].trim();
@@ -391,7 +454,7 @@ function App() {
             </div>
           </div>
 
-          <div className="coeff-board" style={{ margin: 0, flex: '1 1 400px', border: '2px solid var(--neon-cyan)' }}>
+          <div className="coeff-board" style={{ margin: 0, flex: '1 1 400px', border: '2px solid var(--neon-cyan)', position: 'relative' }}>
             <div className="coeff-header">Classement UEFA 5 Ans (Fantasy)</div>
             <div className="coeff-list">
               {Object.entries(fantasyCoeffs)
@@ -404,6 +467,11 @@ function App() {
                     <span className="coeff-pts">{Math.round(pts)}</span>
                   </div>
                 ))}
+            </div>
+            <div style={{ textAlign: 'center', margin: '2rem 0' }}>
+              <button className="next-btn" onClick={handlePrintFantasy} style={{ backgroundColor: '#ff003c', color: '#fff', fontSize: '1.2rem' }}>
+                🖨️ IMPRIMER LES ÉTIQUETTES
+              </button>
             </div>
           </div>
 
@@ -489,8 +557,9 @@ function App() {
       )}
 
       {q4League.length > 0 && q4Champions.length > 0 && !pots && (
-        <footer className="footer">
+        <footer className="footer" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
           <button className="next-btn generate-pots-btn" onClick={handleGeneratePots}>🎲 Générer les Chapeaux (Phase de Ligue)</button>
+          <button className="next-btn" onClick={handleLoadCustomPots} style={{ backgroundColor: '#202020', border: '1px solid #00F0FF', width: '100%', maxWidth: '500px' }}>📜 AFFICHER MES CHAPEAUX PERSONNALISES</button>
         </footer>
       )}
 
@@ -516,11 +585,48 @@ function App() {
             ))}
           </div>
 
-          <div style={{ textAlign: 'center', marginTop: '3rem' }}>
-            <button className="next-btn" onClick={handlePrint} style={{ backgroundColor: '#ff003c', color: '#fff', fontSize: '1.2rem' }}>
+          <div style={{ textAlign: 'center', marginTop: '3rem', display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <button className="next-btn" onClick={handlePrint} style={{ backgroundColor: '#ff003c', color: '#fff', fontSize: '1.2rem', margin: 0 }}>
               🖨️ IMPRIMER LES ÉTIQUETTES
             </button>
+            <button className="next-btn" onClick={handleGenerateLeagueMatches} style={{ backgroundColor: '#00F0FF', color: '#000', fontSize: '1.2rem', margin: 0 }}>
+              ⚽ GENERER LES MATCHS
+            </button>
           </div>
+        </div>
+      )}
+
+      {leagueMatches.length > 0 && (
+        <div className="league-matches-section" style={{ marginTop: '3rem', width: '100%' }}>
+          {Object.entries(leagueMatches.reduce((acc, match) => {
+            const day = match.matchday || 1;
+            if (!acc[day]) acc[day] = [];
+            acc[day].push(match);
+            return acc;
+          }, {})).sort((a,b) => parseInt(a[0]) - parseInt(b[0])).map(([day, matches]) => (
+            <div key={day} style={{ marginBottom: '2rem' }}>
+              <h2 className="round-title">Journée {day} ({matches.length} Matchs)</h2>
+              <div className="matches-grid">
+                {matches.map(m => (
+                  <div key={m.id} className="match-card" style={{ padding: '0.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ flex: 1, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px' }}>
+                      <span>{m.home_team}</span>
+                      {getLogo(m.home_team) && <img src={getLogo(m.home_team)} style={{width: 24, height: 24, objectFit: 'contain'}} alt=""/>}
+                    </div>
+                    <div style={{ margin: '0 15px', fontWeight: 'bold', color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <input type="number" min="0" value={m.home_score || ''} onChange={(e) => handleLeagueMatchChange(m.id, 'home_score', e.target.value)} style={{ width: '40px', textAlign: 'center', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px' }} />
+                      - 
+                      <input type="number" min="0" value={m.away_score || ''} onChange={(e) => handleLeagueMatchChange(m.id, 'away_score', e.target.value)} style={{ width: '40px', textAlign: 'center', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px' }} />
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {getLogo(m.away_team) && <img src={getLogo(m.away_team)} style={{width: 24, height: 24, objectFit: 'contain'}} alt=""/>}
+                      <span>{m.away_team}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

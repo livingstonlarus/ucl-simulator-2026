@@ -35,7 +35,7 @@
   "PAOK": "/assets/logos/PAOK.jpg",
   "Dinamo Zagreb": "/assets/logos/Dinamo_Zagreb.png",
   "FC Thun": "/assets/logos/FC_Thun.svg",
-  "FC Midtjylland": "/assets/logos/Midtjylland.svg",
+  "FC Midtjylland": "/assets/logos/Midtjylland.png",
   "Olympiacos": "/assets/logos/Olympiacos.png",
   "Lech Poznań": "/assets/logos/Lech_Poznań.png",
   "Bodø/Glimt": "/assets/logos/Bodø_Glimt.png",
@@ -91,5 +91,6 @@
   "Union Saint-Gilloise": "/assets/logos/Union_Saint-Gilloise.png",
   "VfB Stuttgart": "/assets/logos/VfB_Stuttgart.png",
   "Viktoria Plzeň": "/assets/logos/Viktoria_Plzeň.png",
-  "Villarreal CF": "/assets/logos/Villarreal_CF.png"
+  "Villarreal CF": "/assets/logos/Villarreal_CF.png",
+  "Viking FK": "/assets/logos/Viking_FK.png"
 }

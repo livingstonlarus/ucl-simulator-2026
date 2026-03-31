@@ -58,6 +58,18 @@ db.serialize(() => {
     team2_value TEXT
   )`);
 
+  // 5. Create league_matches table
+  db.run(`CREATE TABLE IF NOT EXISTS league_matches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    party_id INTEGER,
+    matchday INTEGER,
+    home_team TEXT,
+    away_team TEXT,
+    home_score TEXT,
+    away_score TEXT,
+    finished INTEGER DEFAULT 0
+  )`);
+
   // Migration: If we have old data (without party_id in the row check, though SQLite is flexible)
   // Let's ensure at least one party exists if we have matches
   db.get("SELECT COUNT(*) as count FROM parties", (err, row) => {
@@ -288,6 +300,101 @@ app.post('/generate-pots', (req, res) => {
 import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+app.get('/league-matches', (req, res) => {
+  const partyId = req.query.partyId || 1;
+  db.all("SELECT * FROM league_matches WHERE party_id = ?", [partyId], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+app.post('/generate-league-matches', (req, res) => {
+  const partyId = req.query.partyId || 1;
+  db.all("SELECT * FROM custom_pots", [], (err, rows) => {
+    if (err || rows.length === 0) return res.status(500).json({ error: "Custom pots not found." });
+    
+    // Group into arrays
+    const pots = [ [], [], [], [] ]; 
+    rows.forEach(r => pots[r.pot - 1].push(r.team_name));
+
+    const shuffle = (array) => array.map(value => ({ value, sort: Math.random() })).sort((a, b) => a.sort - b.sort).map(({ value }) => value);
+    const matches = [];
+
+    // Intra-pot matches: each plays 1 home, 1 away in a ring topology
+    for(let i=0; i<4; i++) {
+      const p = shuffle([...pots[i]]);
+      for(let j=0; j<p.length; j++) {
+        matches.push({ home: p[j], away: p[(j+1) % p.length] });
+      }
+    }
+
+    // Inter-pot matches: each plays 1 home, 1 away cleanly
+    const pairs = [[0,1], [0,2], [0,3], [1,2], [1,3], [2,3]];
+    for (const [p1, p2] of pairs) {
+      const g1 = pots[p1];
+      const g2 = pots[p2];
+      
+      let g2_shuffled = shuffle([...g2]);
+      // g1 plays at home vs g2_shuffled
+      for(let i=0; i<9; i++) {
+        matches.push({ home: g1[i], away: g2_shuffled[i] });
+      }
+
+      // g2_shuffled plays at home vs g1, but shifted by 1 to avoid direct back-to-back same opponent
+      for(let i=0; i<9; i++) {
+        matches.push({ home: g2_shuffled[(i+1)%9], away: g1[i] });
+      }
+    }
+
+    // Assign matchdays using a greedy approach, allowing up to 10 matchdays if strict 8 fails
+    const assignment = Array(144).fill(0);
+    const teamOccupied = Array.from({length: 12}, () => ({}));
+    for(let i=0; i<144; i++) {
+      const m = matches[i];
+      for(let d=1; d<=12; d++) {
+        if(!teamOccupied[d-1][m.home] && !teamOccupied[d-1][m.away]) {
+          teamOccupied[d-1][m.home] = true;
+          teamOccupied[d-1][m.away] = true;
+          assignment[i] = d;
+          break;
+        }
+      }
+    }
+
+    db.run("DELETE FROM league_matches WHERE party_id = ?", [partyId], () => {
+      const stmt = db.prepare("INSERT INTO league_matches (party_id, matchday, home_team, away_team, home_score, away_score) VALUES (?, ?, ?, ?, '', '')");
+      matches.forEach((m, idx) => stmt.run(partyId, assignment[idx], m.home, m.away));
+      stmt.finalize(() => {
+        res.json({ success: true, count: matches.length });
+      });
+    });
+  });
+});
+
+app.put('/league-matches/:id', (req, res) => {
+  const { home_score, away_score } = req.body;
+  const id = req.params.id;
+  const finished = (home_score !== '' && away_score !== '') ? 1 : 0;
+  
+  db.run("UPDATE league_matches SET home_score = ?, away_score = ?, finished = ? WHERE id = ?", 
+    [home_score, away_score, finished, id], 
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true, changes: this.changes });
+    }
+  );
+});
+
+app.get('/custom-pots', (req, res) => {
+  db.all("SELECT * FROM custom_pots ORDER BY pot ASC, rank ASC", [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (rows.length === 0) return res.status(404).json({ error: "Custom pots non trouvés" });
+    const pots = { pot1: [], pot2: [], pot3: [], pot4: [] };
+    rows.forEach(r => pots[`pot${r.pot}`].push(r.team_name));
+    res.json({ success: true, pots });
+  });
+});
 
 app.get('/coefficients', (req, res) => {
   db.all("SELECT * FROM club_coefficients ORDER BY coefficient DESC", [], (err, rows) => {

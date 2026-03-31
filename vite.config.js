@@ -12,6 +12,9 @@ export default defineConfig({
       '/generate-q3': 'http://127.0.0.1:3000',
       '/generate-q4': 'http://127.0.0.1:3000',
       '/generate-pots': 'http://127.0.0.1:3000',
+      '/generate-league-matches': 'http://127.0.0.1:3000',
+      '/league-matches': 'http://127.0.0.1:3000',
+      '/custom-pots': 'http://127.0.0.1:3000',
       '/standings': 'http://127.0.0.1:3000',
       '/coefficients': 'http://127.0.0.1:3000',
       '/coefficients-fantasy': 'http://127.0.0.1:3000'
